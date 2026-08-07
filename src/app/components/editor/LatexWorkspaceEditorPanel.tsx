@@ -53,6 +53,7 @@ function ensureMonacoOverflowWidgetRoot(): HTMLElement | null {
 export function LatexWorkspaceEditorPanel(props: {
   activeProjectId: string | null;
   busy: boolean;
+  compileBusy: boolean;
   suspended: boolean;
   selectedFile: string | null;
   selectedIsDraw: boolean;
@@ -144,6 +145,7 @@ export function LatexWorkspaceEditorPanel(props: {
   const {
     activeProjectId,
     busy,
+    compileBusy,
     suspended,
     selectedFile,
     selectedIsDraw,
@@ -347,6 +349,7 @@ export function LatexWorkspaceEditorPanel(props: {
       ) : (
         <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
           <LazyWorkspaceMonacoEditor
+            projectId={activeProjectId ?? ""}
             path={selectedFile ?? undefined}
             language={editorLanguage}
             theme={editorTheme}
@@ -515,7 +518,7 @@ export function LatexWorkspaceEditorPanel(props: {
               <button
                 className="panel-topbar-btn editor-toolbar-btn editor-toolbar-btn--primary motion-hover-rise disabled:opacity-50"
                 onClick={onCompileClick}
-                disabled={busy || !canCompileSelectedFile}
+                disabled={busy || compileBusy || !canCompileSelectedFile}
                 title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
                 aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
               >
@@ -529,7 +532,7 @@ export function LatexWorkspaceEditorPanel(props: {
                 onAutoFix={() => {
                   void onCompileAssistAutoFix();
                 }}
-                autoFixDisabled={busy || compileAssistAutoFixBusy}
+                autoFixDisabled={busy || compileBusy || compileAssistAutoFixBusy}
                 t={t}
               />
             </div>

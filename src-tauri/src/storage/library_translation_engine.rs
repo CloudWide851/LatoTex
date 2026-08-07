@@ -3,6 +3,10 @@ mod library_translation_paper_analysis_engine;
 #[path = "library_translation/paper_translation_engine.rs"]
 mod library_translation_paper_translation_engine;
 
+pub(crate) use library_translation_paper_analysis_engine::{
+    extract_workspace_pdf_context, WorkspacePdfContextExtract,
+};
+
 const LIBRARY_WORKSPACE_PREFIX: &str = ".latotex/papers";
 
 #[derive(Clone)]

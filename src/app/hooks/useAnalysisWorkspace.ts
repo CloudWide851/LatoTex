@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentTeamMode } from "../../shared/types/app";
-import { executeWorkflowCancel, getEvents } from "../../shared/api/agent";
+import { executeWorkflowCancel } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
-import { readFile } from "../../shared/api/workspace";
-import { listCandidateDataFiles } from "./analysisDataSources";
+import { isAnalysisReferenceFile, listAnalysisReferenceFiles, listCandidateDataFiles } from "./analysisDataSources";
 import { appendPromptRefs, resolveDroppedPromptRefs } from "./analysisDropRefs";
 import { applyPromptRefSuggestion } from "./analysisPromptRefs";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
@@ -16,11 +15,13 @@ import { upsertRun } from "./analysisWorkspaceHelpers";
 import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
 import { useAnalysisLiveState } from "./useAnalysisLiveState";
+import { useAnalysisRunHydration } from "./useAnalysisRunHydration";
 import {
   runAnalysisWorkspacePrompt,
   type RunAnalysisWorkspacePromptOptions,
 } from "./analysisWorkspaceRunner";
 import { applyAnalysisPreflightAnswers, buildAnalysisPreflight } from "./analysisPreflight";
+import { shouldRunAnalysisPreflight } from "./analysisWorkspaceSources";
 
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const {
@@ -38,8 +39,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const [running, setRunning] = useState(false);
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [activeRunHtml, setActiveRunHtml] = useState("");
-  const [historicalEvents, setHistoricalEvents] = useState<typeof events>([]);
   const [liveRunIds, setLiveRunIds] = useState<string[]>([]);
   const [liveStageLabel, setLiveStageLabel] = useState("");
   const [preflight, setPreflight] = useState<AnalysisPreflightState | null>(null);
@@ -52,10 +51,11 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const liveTaskIdRef = useRef<string | null>(null);
   const liveTaskRunIdRef = useRef<string | null>(null);
   const runGenerationRef = useRef(0);
-  const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
+  const candidateFiles = useMemo(() => listAnalysisReferenceFiles(fileList), [fileList]);
+  const structuredDataFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
   const csvCandidateFiles = useMemo(
-    () => candidateFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
-    [candidateFiles],
+    () => structuredDataFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
+    [structuredDataFiles],
   );
   const activeTask = useMemo(
     () => tasks.find((item) => item.id === activeTaskId) ?? null,
@@ -76,19 +76,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [activeTask]);
   const prompt = activeTask?.draftPrompt ?? "";
   const analysisError = activeTask?.lastError ?? null;
-  const mergedAnalysisEvents = useMemo(() => {
-    if (historicalEvents.length === 0) {
-      return events;
-    }
-    const byId = new Map<string, typeof events[number]>();
-    for (const event of historicalEvents) {
-      byId.set(event.id, event);
-    }
-    for (const event of events) {
-      byId.set(event.id, event);
-    }
-    return Array.from(byId.values()).sort((left, right) => left.seq - right.seq);
-  }, [events, historicalEvents]);
+  const { activeRunHtml, setActiveRunHtml, mergedEvents } = useAnalysisRunHydration({
+    projectId,
+    activeRun,
+    liveRunCount: liveRunIds.length,
+    events,
+  });
   const {
     timelineCards,
     liveTimelineCards,
@@ -96,74 +89,10 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     liveStage,
   } = useAnalysisLiveState({
     activeRun,
-    events: mergedAnalysisEvents,
+    events: mergedEvents,
     liveRunIds,
     liveStageLabel,
   });
-  useEffect(() => {
-    if (!activeRun || liveRunIds.length > 0) {
-      setHistoricalEvents([]);
-      return;
-    }
-    const runIds = Array.from(new Set(
-      Array.isArray(activeRun.eventRunIds) && activeRun.eventRunIds.length > 0
-        ? activeRun.eventRunIds
-        : activeRun.agentRunId
-          ? [activeRun.agentRunId]
-          : [],
-    ));
-    if (runIds.length === 0) {
-      setHistoricalEvents([]);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(runIds.map((runId) => getEvents(0, 1000, runId, 0)))
-      .then((batches) => {
-        if (cancelled) {
-          return;
-        }
-        const hydrated = batches.flatMap((batch) => batch.events ?? []);
-        setHistoricalEvents(hydrated);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setHistoricalEvents([]);
-          void runtimeLogWrite("WARN", `analysis history hydrate failed: runIds=${runIds.join(",")}, reason=${String(error)}`).catch(() => undefined);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeRun, liveRunIds.length]);
-  useEffect(() => {
-    if (!activeRun) {
-      setActiveRunHtml("");
-      return;
-    }
-    if (typeof activeRun.reportHtml === "string" && activeRun.reportHtml.trim().length > 0) {
-      setActiveRunHtml(activeRun.reportHtml);
-      return;
-    }
-    if (!projectId || !activeRun.reportRelativePath) {
-      setActiveRunHtml("");
-      return;
-    }
-    let cancelled = false;
-    readFile(projectId, activeRun.reportRelativePath)
-      .then((file) => {
-        if (!cancelled) {
-          setActiveRunHtml(file.content ?? "");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setActiveRunHtml("");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeRun, projectId]);
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
@@ -310,7 +239,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     });
   }, [liveOutput, liveStage, running, updateTaskById]);
   const onDropPromptPaths = useCallback((paths: string[]) => {
-    const resolvedPaths = resolveDroppedPromptRefs(paths, candidateFiles);
+    const resolvedPaths = resolveDroppedPromptRefs(paths, fileList, { allowUnmatched: false })
+      .filter(isAnalysisReferenceFile);
     if (resolvedPaths.length === 0) {
       return;
     }
@@ -332,7 +262,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       draftPrompt: appendPromptRefs(task.draftPrompt ?? "", resolvedPaths, applyPromptRefSuggestion),
       updatedAt: nowIso(),
     }));
-  }, [activeTaskId, candidateFiles, t, updateTaskById]);
+  }, [activeTaskId, fileList, t, updateTaskById]);
   const setPrompt = useCallback((value: string) => {
     if (!activeTaskId) {
       return;
@@ -424,12 +354,13 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       return;
     }
     let executionOptions = options;
-    if (!options?.skipPreflight && task.sourceType !== "paper") {
+    const shouldRunPreflight = shouldRunAnalysisPreflight(normalizedPrompt, candidateFiles);
+    if (!options?.skipPreflight && task.sourceType !== "paper" && shouldRunPreflight) {
       try {
         const result = await buildAnalysisPreflight({
           projectId,
           prompt: normalizedPrompt,
-          candidateFiles,
+          candidateFiles: structuredDataFiles,
           csvCandidateFiles,
           t,
         });
@@ -465,8 +396,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       activeTaskId,
       selectedFile,
       editorContent,
-      candidateFiles,
-      csvCandidateFiles,
+      referenceFiles: candidateFiles,
+      structuredDataFiles,
       locale,
       analysisModelOverride,
       liveOutput,
@@ -503,6 +434,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     selectedFile,
     setToast,
     suspended,
+    structuredDataFiles,
     t,
     updateTaskById,
   ]);

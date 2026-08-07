@@ -67,6 +67,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     previewOverridePath,
     compileErrorLine,
     compileDiagnostics,
+    compileBusy,
     compileInstallProgress,
     agentCollapsed,
     explorerGitDecorations,
@@ -314,6 +315,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   };
 
   const handleCompileAssistAutoFix = async () => {
+    if (compileBusy || compileAssistAutoFixBusy) {
+      return;
+    }
     if (compileAssistCjkIssue && selectedFile) {
       const patched = applyCjkAutoFixToSource(editorContent);
       if (!patched.changed) {
@@ -321,11 +325,14 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         return;
       }
       setCompileAssistAutoFixBusy(true);
-      const ok = await onWriteSelectedFileContent(patched.patchedSource);
-      setCompileAssistAutoFixBusy(false);
-      if (ok) {
-        setCompileAssistOverride(null);
-        setCompileAssistDismissedFor("");
+      try {
+        const ok = await onWriteSelectedFileContent(patched.patchedSource);
+        if (ok) {
+          setCompileAssistOverride(null);
+          setCompileAssistDismissedFor("");
+        }
+      } finally {
+        setCompileAssistAutoFixBusy(false);
       }
       return;
     }
@@ -390,6 +397,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       canZoomPreview={canZoomPreview}
       previewZoom={previewZoom}
       compileErrorLine={compileErrorLine}
+      compileBusy={compileBusy}
       compileInstallProgress={compileInstallProgress}
       onEditorChange={onEditorChange}
       onOpenLogs={onOpenLogs}

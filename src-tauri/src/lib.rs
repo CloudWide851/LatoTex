@@ -25,6 +25,7 @@ use commands::agent_workflows::{
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
+use commands::analysis_context::analysis_context_load;
 use commands::channels_dingtalk::{
     channels_dingtalk_poll, channels_dingtalk_send, channels_dingtalk_test,
 };
@@ -439,6 +440,7 @@ pub fn run() {
             analysis_save_report,
             analysis_list_reports,
             analysis_export_artifact,
+            analysis_context_load,
             workspace_reveal_in_system,
             workspace_open_terminal,
             open_external_link,

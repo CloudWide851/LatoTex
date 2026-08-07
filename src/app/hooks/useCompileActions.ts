@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { openProject } from "../../shared/api/projects";
 import { readFileBinary, workspaceExportPdf } from "../../shared/api/workspace";
 import { isPdfPath, isTexPath } from "../../shared/utils/fileKind";
@@ -52,6 +52,55 @@ export function useCompileActions(params: {
     editorRef,
     t,
   } = params;
+  const [compileBusy, setCompileBusy] = useState(false);
+  const compileBusyRef = useRef(false);
+  const compileFlightTokenRef = useRef<symbol | null>(null);
+  const compileFlightSettledRef = useRef<Promise<void> | null>(null);
+  const resolveCompileFlightRef = useRef<(() => void) | null>(null);
+
+  const tryBeginCompileFlight = useCallback((): symbol | null => {
+    if (compileBusyRef.current) {
+      return null;
+    }
+    const token = Symbol("compile-flight");
+    let resolveFlight!: () => void;
+    compileBusyRef.current = true;
+    compileFlightTokenRef.current = token;
+    compileFlightSettledRef.current = new Promise<void>((resolve) => {
+      resolveFlight = resolve;
+    });
+    resolveCompileFlightRef.current = resolveFlight;
+    setCompileBusy(true);
+    return token;
+  }, []);
+
+  const finishCompileFlight = useCallback((token: symbol) => {
+    if (compileFlightTokenRef.current !== token) {
+      return;
+    }
+    const resolveFlight = resolveCompileFlightRef.current;
+    compileBusyRef.current = false;
+    compileFlightTokenRef.current = null;
+    compileFlightSettledRef.current = null;
+    resolveCompileFlightRef.current = null;
+    setCompileBusy(false);
+    resolveFlight?.();
+  }, []);
+
+  const waitAndBeginCompileFlight = useCallback(async (): Promise<symbol> => {
+    for (;;) {
+      const token = tryBeginCompileFlight();
+      if (token) {
+        return token;
+      }
+      const activeFlight = compileFlightSettledRef.current;
+      if (activeFlight) {
+        await activeFlight;
+      } else {
+        await Promise.resolve();
+      }
+    }
+  }, [tryBeginCompileFlight]);
 
   const runCompilePass = useCallback(async (
     projectId: string,
@@ -94,11 +143,17 @@ export function useCompileActions(params: {
     mainContent: string;
     options: { updatePreview: boolean; emitToast: boolean };
   }) => {
-    return runCompilePass(input.projectId, input.mainPath, input.mainContent, {
-      ...input.options,
-      compileMode: "sync",
-    });
-  }, [runCompilePass]);
+    const compileToken = await waitAndBeginCompileFlight();
+    try {
+      return await runCompilePass(input.projectId, input.mainPath, input.mainContent, {
+        ...input.options,
+        compileMode: "sync",
+      });
+    } finally {
+      setCompileInstallProgress(null);
+      finishCompileFlight(compileToken);
+    }
+  }, [finishCompileFlight, runCompilePass, setCompileInstallProgress, waitAndBeginCompileFlight]);
 
   const handleCompile = useCallback(async (): Promise<CompileActionResult | null> => {
     if (!activeProjectId || !selectedFile) {
@@ -112,58 +167,66 @@ export function useCompileActions(params: {
       setCompileDiagnostics([t("toast.compileTexOnly")]);
       return null;
     }
+    const compileToken = tryBeginCompileFlight();
+    if (!compileToken) {
+      return null;
+    }
     setCompileDiagnostics([]);
-
-    const result = await runAppAction<CompileActionResult | null>({
-      action: async () => {
-        const selectedContent = await resolveSelectedFileContent();
-        const compileResult = await runCompilePass(
-          activeProjectId,
-          selectedFile,
-          selectedContent ?? editorContent,
-          {
-            updatePreview: true,
-            emitToast: true,
-            compileMode: "task",
-          },
-        );
-        return {
-          status: compileResult.status,
-          diagnostics: compileResult.diagnostics,
-          pdfRelativePath: compileResult.pdfRelativePath ?? null,
-          pdfUrl: compileResult.pdfRelativePath
-            ? buildWorkspacePreviewUrl(activeProjectId, compileResult.pdfRelativePath)
-            : null,
-        };
-      },
-      fallbackValue: null,
-      setBusy,
-      setToast,
-      errorLogLabel: "latex.compile",
-      onError: (error) => {
-        setLastCompileFailed(true);
-        setCompileDiagnostics([String(error)]);
-        setCompileInstallProgress(null);
-      },
-    });
-    setCompileInstallProgress(null);
-    return result;
+    try {
+      return await runAppAction<CompileActionResult | null>({
+        action: async () => {
+          const selectedContent = await resolveSelectedFileContent();
+          const compileResult = await runCompilePass(
+            activeProjectId,
+            selectedFile,
+            selectedContent ?? editorContent,
+            {
+              updatePreview: true,
+              emitToast: true,
+              compileMode: "task",
+            },
+          );
+          return {
+            status: compileResult.status,
+            diagnostics: compileResult.diagnostics,
+            pdfRelativePath: compileResult.pdfRelativePath ?? null,
+            pdfUrl: compileResult.pdfRelativePath
+              ? buildWorkspacePreviewUrl(activeProjectId, compileResult.pdfRelativePath)
+              : null,
+          };
+        },
+        fallbackValue: null,
+        setToast,
+        errorLogLabel: "latex.compile",
+        onError: (error) => {
+          setLastCompileFailed(true);
+          setCompileDiagnostics([String(error)]);
+        },
+      });
+    } finally {
+      setCompileInstallProgress(null);
+      finishCompileFlight(compileToken);
+    }
   }, [
     activeProjectId,
     editorContent,
+    finishCompileFlight,
     isTexPath,
     resolveSelectedFileContent,
     runCompilePass,
     selectedFile,
-    setBusy,
     setCompileDiagnostics,
     setCompileInstallProgress,
     setLastCompileFailed,
     setToast,
     t,
+    tryBeginCompileFlight,
   ]);
 
   const handleExportCompiledPdf = useCallback(async () => {
+    if (compileBusyRef.current) {
+      return;
+    }
     if (!activeProjectId || !compiledPdfRelativePath || !pdfUrl) {
       setToast({ type: "error", message: t("toast.pdfNotReady") });
       return;
@@ -214,6 +277,7 @@ export function useCompileActions(params: {
   }, [editorRef]);
 
   return {
+    compileBusy,
     runCompilePassForAgent,
     handleCompile,
     handleExportCompiledPdf,

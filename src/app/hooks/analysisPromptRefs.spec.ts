@@ -7,10 +7,10 @@ describe("analysis prompt refs", () => {
     expect(extractPromptRefValues(prompt)).toEqual(["data.csv", "docs/spec file.pdf"]);
   });
 
-  it("resolves only candidate files and does not hard-fail unresolved refs", () => {
+  it("separates resolved candidates from unresolved refs", () => {
     const prompt = 'analyze @data.csv @docs/spec.pdf';
     const resolved = resolvePromptInputFiles(prompt, ["data.csv"]);
     expect(resolved.resolved).toEqual(["data.csv"]);
-    expect(resolved.unresolved).toEqual([]);
+    expect(resolved.unresolved).toEqual(["docs/spec.pdf"]);
   });
 });

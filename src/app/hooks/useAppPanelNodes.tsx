@@ -239,49 +239,50 @@ export function useAppPanelNodes(params: any) {
   const analysisPanel = (
     <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
       <LazyAnalysisWorkspace
-      busy={busy}
-      prompt={analysisWorkspace.prompt}
-      canRun={analysisWorkspace.canRun}
-      running={analysisWorkspace.running}
-      errorMessage={analysisWorkspace.analysisError}
-      tasks={analysisWorkspace.tasks}
-      activeTaskId={analysisWorkspace.activeTaskId}
-      activeRun={analysisWorkspace.activeRun}
-      activeRunHtml={analysisWorkspace.activeRunHtml}
-      timelineCards={analysisWorkspace.timelineCards}
-      liveTimelineCards={analysisWorkspace.liveTimelineCards}
-      liveStageLabel={analysisWorkspace.liveStage}
-      liveOutput={analysisWorkspace.liveOutput}
-      canContinue={analysisWorkspace.canContinue}
-      candidateFiles={analysisWorkspace.candidateFiles}
-      preflight={analysisWorkspace.preflight}
-      onPromptChange={analysisWorkspace.setPrompt}
-      onDropPaths={analysisWorkspace.onDropPromptPaths}
-      onRun={() => {
-        void analysisWorkspace.runAnalysis();
-      }}
-      onRunTeams={() => {
-        void analysisWorkspace.runAnalysis("force");
-      }}
-      onContinue={() => {
-        void analysisWorkspace.continueAnalysis();
-      }}
-      onPreflightAnswerChange={analysisWorkspace.updatePreflightAnswers}
-      onPreflightSubmit={() => {
-        void analysisWorkspace.submitPreflight();
-      }}
-      onPreflightCancel={analysisWorkspace.cancelPreflight}
-      onSelectTask={analysisWorkspace.setActiveTaskId}
-      onCreateTask={() => analysisWorkspace.createTask("data")}
-      onRenameTask={analysisWorkspace.renameTask}
-      onSelectRun={analysisWorkspace.setActiveRunForTask}
-      onDeleteTask={analysisWorkspace.deleteTask}
-      onExportArtifact={(relativePath: string) => {
-        void analysisWorkspace.exportArtifact(relativePath);
-      }}
-      onRevealArtifact={(relativePath: string) => {
-        void analysisWorkspace.revealArtifact(relativePath);
-      }}
+        projectId={activeProjectId}
+        busy={busy}
+        prompt={analysisWorkspace.prompt}
+        canRun={analysisWorkspace.canRun}
+        running={analysisWorkspace.running}
+        errorMessage={analysisWorkspace.analysisError}
+        tasks={analysisWorkspace.tasks}
+        activeTaskId={analysisWorkspace.activeTaskId}
+        activeRun={analysisWorkspace.activeRun}
+        activeRunHtml={analysisWorkspace.activeRunHtml}
+        timelineCards={analysisWorkspace.timelineCards}
+        liveTimelineCards={analysisWorkspace.liveTimelineCards}
+        liveStageLabel={analysisWorkspace.liveStage}
+        liveOutput={analysisWorkspace.liveOutput}
+        canContinue={analysisWorkspace.canContinue}
+        candidateFiles={analysisWorkspace.candidateFiles}
+        preflight={analysisWorkspace.preflight}
+        onPromptChange={analysisWorkspace.setPrompt}
+        onDropPaths={analysisWorkspace.onDropPromptPaths}
+        onRun={() => {
+          void analysisWorkspace.runAnalysis();
+        }}
+        onRunTeams={() => {
+          void analysisWorkspace.runAnalysis("force");
+        }}
+        onContinue={() => {
+          void analysisWorkspace.continueAnalysis();
+        }}
+        onPreflightAnswerChange={analysisWorkspace.updatePreflightAnswers}
+        onPreflightSubmit={() => {
+          void analysisWorkspace.submitPreflight();
+        }}
+        onPreflightCancel={analysisWorkspace.cancelPreflight}
+        onSelectTask={analysisWorkspace.setActiveTaskId}
+        onCreateTask={() => analysisWorkspace.createTask("data")}
+        onRenameTask={analysisWorkspace.renameTask}
+        onSelectRun={analysisWorkspace.setActiveRunForTask}
+        onDeleteTask={analysisWorkspace.deleteTask}
+        onExportArtifact={(relativePath: string) => {
+          void analysisWorkspace.exportArtifact(relativePath);
+        }}
+        onRevealArtifact={(relativePath: string) => {
+          void analysisWorkspace.revealArtifact(relativePath);
+        }}
         t={t}
       />
     </Suspense>

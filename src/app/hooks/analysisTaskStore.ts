@@ -44,6 +44,7 @@ function normalizeRun(input: unknown): AnalysisTaskRun | null {
     sourceType: run.sourceType === "paper" ? "paper" : "data",
     sourcePath: typeof run.sourcePath === "string" && run.sourcePath.trim() ? run.sourcePath : undefined,
     inputFiles: Array.isArray(run.inputFiles) ? run.inputFiles.map((item) => String(item)) : [],
+    contextFiles: Array.isArray(run.contextFiles) ? run.contextFiles.map((item) => String(item)) : undefined,
     outputLanguage: run.outputLanguage === "zh-CN" ? "zh-CN" : "en-US",
     agentRunId: typeof run.agentRunId === "string" && run.agentRunId.trim() ? run.agentRunId : undefined,
     eventRunIds: Array.isArray(run.eventRunIds) ? run.eventRunIds.map((item) => String(item)) : undefined,

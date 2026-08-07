@@ -66,6 +66,7 @@ export function resolvePromptInputFiles(prompt: string, candidateFiles: string[]
   }
 
   const resolvedSet = new Set<string>();
+  const unresolvedSet = new Set<string>();
   for (const token of tokens) {
     const exact = byPath.get(token.value);
     if (exact) {
@@ -75,11 +76,13 @@ export function resolvePromptInputFiles(prompt: string, candidateFiles: string[]
     const byFileName = byName.get(basenameOf(token.value).toLowerCase()) ?? [];
     if (byFileName.length === 1) {
       resolvedSet.add(byFileName[0]);
+      continue;
     }
+    unresolvedSet.add(token.value);
   }
   return {
     resolved: Array.from(resolvedSet),
-    unresolved: [],
+    unresolved: Array.from(unresolvedSet),
   };
 }
 

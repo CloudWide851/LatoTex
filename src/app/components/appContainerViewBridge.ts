@@ -15,6 +15,7 @@ type AppContainerViewBridge = Pick<
   | "compiledPdfRelativePath"
   | "selectedImagePreviewUrl"
   | "previewOverridePath"
+  | "compileBusy"
   | "compileInstallProgress"
   | "agentPendingAction"
   | "handleResolveAgentPendingAction"
@@ -36,6 +37,7 @@ export function createAppContainerViewBridge(
     compiledPdfRelativePath: state.compiledPdfRelativePath,
     selectedImagePreviewUrl: state.selectedImagePreviewUrl,
     previewOverridePath: state.previewOverridePath,
+    compileBusy: handlers.compileBusy,
     compileInstallProgress: state.compileInstallProgress,
     agentPendingAction: state.agentPendingAction,
     handleResolveAgentPendingAction: handlers.handleResolveAgentPendingAction,
