@@ -38,6 +38,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore pinned Windows runtime cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/tools
+          key: latotex-bundled-tools-win-x64-v1-${{ hashFiles('scripts/prepare-bundled-tools-win-x64.ps1', 'scripts/assets/tectonic-offline-seed-2022.0r0.zip') }}
+
+      - name: Restore pinned DrawIO cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/core/drawio/vendor
+          key: latotex-drawio-v29.6.6-v1-${{ hashFiles('scripts/prepare-drawio-assets.mjs', 'src-tauri/resources/core/drawio/drawio-version.json') }}
+
       - name: Windows x64 release-quality gate
         run: pnpm release:check:win-x64
 
@@ -69,6 +81,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libxdo-dev \
             patchelf \
+            unzip \
             wget
 
       - name: Setup pnpm
@@ -87,6 +100,18 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Prepare Tauri resource root
+        run: mkdir -p src-tauri/resources/tools
+
+      - name: Restore pinned DrawIO cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/core/drawio/vendor
+          key: latotex-drawio-v29.6.6-v1-${{ hashFiles('scripts/prepare-drawio-assets.mjs', 'src-tauri/resources/core/drawio/drawio-version.json') }}
+
+      - name: Prepare pinned DrawIO webapp
+        run: pnpm release:prepare-drawio
 
       - name: Frontend architecture check
         run: pnpm arch:check
@@ -153,6 +178,18 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Prepare Tauri resource root
+        run: mkdir -p src-tauri/resources/tools
+
+      - name: Restore pinned DrawIO cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/core/drawio/vendor
+          key: latotex-drawio-v29.6.6-v1-${{ hashFiles('scripts/prepare-drawio-assets.mjs', 'src-tauri/resources/core/drawio/drawio-version.json') }}
+
+      - name: Prepare pinned DrawIO webapp
+        run: pnpm release:prepare-drawio
 
       - name: Frontend architecture check
         run: pnpm arch:check
