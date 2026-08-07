@@ -12,7 +12,13 @@ pub(crate) fn normalize_workspace_path(input: &str) -> Result<PathBuf, String> {
     if normalized.is_empty() {
         return Err("workspace.path.invalid".to_string());
     }
-    if Path::new(&normalized).is_absolute() {
+    let bytes = normalized.as_bytes();
+    let has_windows_drive_prefix =
+        bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':';
+    if normalized.starts_with('/')
+        || has_windows_drive_prefix
+        || Path::new(&normalized).is_absolute()
+    {
         return Err("workspace.path.outside_root".to_string());
     }
     let mut relative = PathBuf::new();
@@ -328,6 +334,10 @@ mod workspace_fs_policy_tests {
         );
         assert_eq!(
             safe_join(&root, r"C:\\escape.tex").unwrap_err(),
+            "workspace.path.outside_root"
+        );
+        assert_eq!(
+            safe_join(&root, r"\\server\share\escape.tex").unwrap_err(),
             "workspace.path.outside_root"
         );
         let _ = fs::remove_dir_all(root);

@@ -200,6 +200,28 @@ mod tests {
     use std::path::PathBuf;
     use std::process::Command;
 
+    #[cfg(any(windows, unix))]
+    fn verified_uv_fixture(_temp_root: &std::path::Path) -> PathBuf {
+        #[cfg(windows)]
+        {
+            return bundled_uv_candidates()
+                .into_iter()
+                .find(|candidate| candidate.is_file())
+                .expect("packaged Windows uv fixture should exist");
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let path = _temp_root.join("uv");
+            fs::write(&path, "#!/bin/sh\nprintf 'uv 0.0.0\\n'\n").unwrap();
+            let mut permissions = fs::metadata(&path).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&path, permissions).unwrap();
+            path
+        }
+    }
+
     #[test]
     fn uv_command_uses_runtime_scoped_environment() {
         let runtime_root = PathBuf::from(r"H:\LatoTex\runtime-data");
@@ -280,9 +302,14 @@ mod tests {
     #[test]
     fn packaged_uv_is_the_first_candidate_and_resolves_when_present() {
         let candidates = bundled_uv_candidates();
+        let expected_suffix = if cfg!(target_os = "windows") {
+            "resources/tools/uv/windows-x64/uv.exe"
+        } else {
+            "resources/tools/uv/uv"
+        };
         assert!(candidates
             .first()
-            .is_some_and(|path| path.ends_with("resources/tools/uv/windows-x64/uv.exe")));
+            .is_some_and(|path| path.ends_with(expected_suffix)));
         if candidates.first().is_some_and(|path| path.is_file()) {
             let resolved = resolve_uv(None).expect("packaged uv should resolve");
             assert_eq!(resolved.source, "bundled");
@@ -291,22 +318,20 @@ mod tests {
         }
     }
 
+    #[cfg(any(windows, unix))]
     #[test]
     fn damaged_uv_candidate_falls_back_to_the_next_verified_candidate() {
-        let packaged = bundled_uv_candidates()
-            .into_iter()
-            .find(|candidate| candidate.is_file())
-            .expect("packaged uv fixture should exist");
         let temp_root =
             std::env::temp_dir().join(format!("latotex-uv-fallback-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_root).unwrap();
+        let verified = verified_uv_fixture(&temp_root);
         let damaged = temp_root.join("uv.exe");
         fs::write(&damaged, b"not an executable").unwrap();
 
-        let resolved = first_verified_uv([(damaged, "bundled"), (packaged.clone(), "managed")])
+        let resolved = first_verified_uv([(damaged, "bundled"), (verified.clone(), "managed")])
             .expect("the verified fallback should resolve");
 
-        assert_eq!(resolved.path, packaged);
+        assert_eq!(resolved.path, verified);
         assert_eq!(resolved.source, "managed");
         let _ = fs::remove_dir_all(temp_root);
     }

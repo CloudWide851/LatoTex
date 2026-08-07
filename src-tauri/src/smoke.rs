@@ -109,9 +109,10 @@ mod tests {
 
     #[test]
     fn smoke_webview_data_stays_inside_runtime_root() {
+        let runtime_root = Path::new("latotex-smoke-runtime");
         assert_eq!(
-            webview_data_path(Path::new(r"C:\Temp\latotex-smoke")),
-            Path::new(r"C:\Temp\latotex-smoke\webview-data")
+            webview_data_path(runtime_root),
+            runtime_root.join("webview-data")
         );
     }
 }
