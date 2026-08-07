@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type
 import { resolveLocale } from "../../i18n";
 import type { Locale } from "../../i18n";
 import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
+import { refreshAgentRuntimes } from "../../shared/api/agent";
 import { resumeLibraryPdfDownloads } from "../../shared/api/library";
 import { listProjects } from "../../shared/api/projects";
 import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
@@ -23,6 +24,7 @@ import {
 } from "../appearance/appAppearance";
 import { normalizeKnowledgePrefs } from "../settings/knowledgeSettings";
 import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
+import { shouldRefreshAgentRuntimesAtStartup } from "./startupRuntimeRefresh";
 
 type TranslationFn = (...args: any[]) => string;
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
@@ -232,6 +234,7 @@ export function useAppStartup(params: {
   } = params;
   const mountedRef = useRef(true);
   const startedRef = useRef(false);
+  const runtimeRefreshStartedRef = useRef(false);
   const [startupReady, setStartupReady] = useState(false);
 
   useEffect(() => () => {
@@ -372,6 +375,27 @@ export function useAppStartup(params: {
     settingsRef,
     t,
   ]);
+
+  useEffect(() => {
+    if (!shouldRefreshAgentRuntimesAtStartup({
+      startupReady,
+      isTauriRuntime,
+      refreshStarted: runtimeRefreshStartedRef.current,
+    })) {
+      return;
+    }
+    runtimeRefreshStartedRef.current = true;
+    void refreshAgentRuntimes("startup")
+      .then((runtimes) => runtimeLogWrite(
+        "INFO",
+        `frontend startup agent runtime refresh completed, count=${runtimes.length}`,
+      ))
+      .catch((error) => runtimeLogWrite(
+        "ERROR",
+        `frontend startup agent runtime refresh failed: ${String(error)}`,
+      ))
+      .catch(() => undefined);
+  }, [isTauriRuntime, startupReady]);
 
   return {
     startupReady,

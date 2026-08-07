@@ -20,7 +20,7 @@ import type {
   RuntimeAssetStatus,
   ToolchainStatus,
 } from "../../../shared/plugins/pluginTypes";
-import type { AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
+import type { AgentRuntimeAction, AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
 import {
   describeRuntimeAssetStatus,
   describeToolchainStatus,
@@ -37,7 +37,6 @@ import {
 } from "./pluginMarketplaceUtils";
 
 type RuntimeAction = "install" | "verify" | "remove";
-type AgentRuntimeAction = "detect" | "select" | "enable" | "disable" | "terminal" | "profiles";
 
 function agentRuntimeStatusLabel(runtime: AgentRuntimeDescriptor | null, t: TranslationFn): string {
   if (!runtime?.available) return t("agents.runtime.unavailable");
@@ -94,6 +93,7 @@ export function PluginMarketplaceDetailDialog(props: {
   installedPlugin: InstalledPlugin | undefined;
   locale: string;
   busy: boolean;
+  activeAgentRuntimeAction: AgentRuntimeAction | null;
   toolchain: PluginContribution | undefined;
   runtimeAsset: PluginContribution | undefined;
   agentRuntime: PluginContribution | undefined;
@@ -115,6 +115,7 @@ export function PluginMarketplaceDetailDialog(props: {
     installedPlugin,
     locale,
     busy,
+    activeAgentRuntimeAction,
     toolchain,
     runtimeAsset,
     agentRuntime,
@@ -143,6 +144,7 @@ export function PluginMarketplaceDetailDialog(props: {
       && agentRuntimeStatus.available
       && agentRuntimeStatus.authenticated,
   );
+  const agentRuntimeUpdating = activeAgentRuntimeAction === "update";
   const contributionInstalled = Boolean(toolchainStatus?.installed || runtimeAssetStatus?.installed);
   const installedLabel = toolchainStatus?.source === "local" || runtimeAssetStatus?.source === "local"
     ? t("plugins.detectedLocal")
@@ -389,6 +391,18 @@ export function PluginMarketplaceDetailDialog(props: {
                 </Button>
                 <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "select")}>
                   {t("plugins.agentRuntime.selectExecutable")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={(busy && !agentRuntimeUpdating) || (!agentRuntimeUpdating && !agentRuntimeStatus?.available)}
+                  onClick={() => onAgentRuntimeAction(
+                    plugin.id,
+                    agentRuntime.agentRuntimeDetector!.runtimeId,
+                    agentRuntimeUpdating ? "cancel-update" : "update",
+                  )}
+                >
+                  {t(agentRuntimeUpdating ? "plugins.agentRuntime.cancelUpdate" : "plugins.agentRuntime.update")}
                 </Button>
                 <Button
                   size="sm"

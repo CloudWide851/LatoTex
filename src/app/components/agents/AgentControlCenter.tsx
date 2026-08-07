@@ -7,6 +7,7 @@ import {
   deleteAgentGraph,
   deleteAgentProfile,
   getAgentControlCatalog,
+  refreshAgentRuntimes,
   saveAgentBinding,
   saveAgentGraph,
   saveAgentProfile,
@@ -97,6 +98,13 @@ export function AgentControlCenter(props: {
       setBusyAction("");
     }
   }, [busyAction]);
+
+  const refreshRuntimes = () => {
+    void runAction("runtime-refresh", async () => {
+      const runtimes = await refreshAgentRuntimes("manual");
+      setCatalog((current) => current ? { ...current, runtimes } : current);
+    });
+  };
 
   const persistProfile = async (profile: AgentProfile) => {
     await runAction("profile", async () => {
@@ -211,9 +219,9 @@ export function AgentControlCenter(props: {
                 aria-label={t("agents.refresh")}
                 title={t("agents.refresh")}
                 disabled={busy}
-                onClick={() => void refresh()}
+                onClick={refreshRuntimes}
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${busyAction === "runtime-refresh" ? "animate-spin" : ""}`} />
               </Button>
               <Button
                 size="icon"

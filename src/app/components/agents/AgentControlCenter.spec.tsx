@@ -5,12 +5,14 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getAgentControlCatalog,
+  refreshAgentRuntimes,
 } from "../../../shared/api/agent";
 import type { AgentControlCatalog } from "../../../shared/types/agentControl";
 import { AgentControlCenter } from "./AgentControlCenter";
 
 vi.mock("../../../shared/api/agent", () => ({
   getAgentControlCatalog: vi.fn(),
+  refreshAgentRuntimes: vi.fn(),
   saveAgentProfile: vi.fn(),
   deleteAgentProfile: vi.fn(),
   saveAgentBinding: vi.fn(),
@@ -52,6 +54,7 @@ const catalog: AgentControlCatalog = {
     executablePath: null,
     version: "0.1.4",
     failure: null,
+    checkedAt: null,
   }],
   bindings: [],
   graphTemplates: [{
@@ -91,6 +94,7 @@ describe("AgentControlCenter", () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
       .IS_REACT_ACT_ENVIRONMENT = true;
     vi.mocked(getAgentControlCatalog).mockResolvedValue(catalog);
+    vi.mocked(refreshAgentRuntimes).mockResolvedValue(catalog.runtimes);
   });
 
   afterEach(() => {

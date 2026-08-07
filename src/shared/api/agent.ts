@@ -56,7 +56,15 @@ export function getAgentControlCatalog(projectId?: string | null): Promise<Agent
 }
 
 export function listAgentRuntimes(): Promise<AgentRuntimeDescriptor[]> {
-  return invokeCommand<AgentRuntimeDescriptor[]>("agent_runtime_list");
+  return invokeCommand<AgentRuntimeDescriptor[]>("agent_runtime_list_cached");
+}
+
+export function refreshAgentRuntimes(
+  reason: "startup" | "manual" | "update",
+): Promise<AgentRuntimeDescriptor[]> {
+  return invokeCommand<AgentRuntimeDescriptor[]>("agent_runtime_refresh_all", {
+    input: { reason },
+  });
 }
 
 export function detectAgentRuntime(runtimeId: AgentRuntimeId): Promise<AgentRuntimeDescriptor> {
@@ -78,6 +86,14 @@ export function setAgentRuntimeEnabled(
   return invokeCommand<AgentRuntimeDescriptor>("agent_runtime_set_enabled", {
     input: { runtimeId, enabled },
   });
+}
+
+export function updateAgentRuntime(runtimeId: AgentRuntimeId): Promise<AgentRuntimeDescriptor> {
+  return invokeCommand<AgentRuntimeDescriptor>("agent_runtime_update", { input: { runtimeId } });
+}
+
+export function cancelAgentRuntimeUpdate(runtimeId: AgentRuntimeId): Promise<Ack> {
+  return invokeCommand<Ack>("agent_runtime_update_cancel", { input: { runtimeId } });
 }
 
 export function saveAgentProfile(profile: AgentProfile): Promise<AgentProfile> {

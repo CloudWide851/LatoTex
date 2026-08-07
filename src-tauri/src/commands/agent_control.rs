@@ -14,7 +14,7 @@ pub fn agent_control_catalog(
     input: AgentControlCatalogInput,
 ) -> Result<AgentControlCatalogResponse, String> {
     let mut catalog = storage::agent_control_catalog(&state.db_path, input.project_id.as_deref())?;
-    catalog.runtimes = super::agent_runtime::runtime_catalog(&state.db_path);
+    catalog.runtimes = super::agent_runtime::cached_runtime_catalog(&state.db_path);
     Ok(catalog)
 }
 

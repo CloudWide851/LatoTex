@@ -31,10 +31,12 @@ const runtimeAssetApiMocks = vi.hoisted(() => ({
 }));
 
 const agentRuntimeApiMocks = vi.hoisted(() => ({
+  cancelAgentRuntimeUpdate: vi.fn(),
   detectAgentRuntime: vi.fn(),
   listAgentRuntimes: vi.fn(),
   pickAgentRuntimeExecutable: vi.fn(),
   setAgentRuntimeEnabled: vi.fn(),
+  updateAgentRuntime: vi.fn(),
 }));
 
 vi.mock("../../../shared/api/plugins", () => ({
@@ -62,10 +64,12 @@ vi.mock("../../../shared/api/runtimeAssets", () => ({
 }));
 
 vi.mock("../../../shared/api/agent", () => ({
+  cancelAgentRuntimeUpdate: agentRuntimeApiMocks.cancelAgentRuntimeUpdate,
   detectAgentRuntime: agentRuntimeApiMocks.detectAgentRuntime,
   listAgentRuntimes: agentRuntimeApiMocks.listAgentRuntimes,
   pickAgentRuntimeExecutable: agentRuntimeApiMocks.pickAgentRuntimeExecutable,
   setAgentRuntimeEnabled: agentRuntimeApiMocks.setAgentRuntimeEnabled,
+  updateAgentRuntime: agentRuntimeApiMocks.updateAgentRuntime,
 }));
 
 function sampleToolchainEntry(): PluginCatalogEntry {
@@ -162,6 +166,7 @@ describe("PluginMarketplace", () => {
     });
     runtimeAssetApiMocks.listRuntimeAssets.mockResolvedValue([]);
     agentRuntimeApiMocks.listAgentRuntimes.mockResolvedValue([]);
+    agentRuntimeApiMocks.cancelAgentRuntimeUpdate.mockResolvedValue({ ok: true, message: "cancelled" });
   });
 
   afterEach(() => {
@@ -248,7 +253,8 @@ describe("PluginMarketplace", () => {
     });
     agentRuntimeApiMocks.listAgentRuntimes.mockResolvedValue([{
       id: "codex-cli",
-      displayName: "Codex CLI",
+      pluginId: "latotex.agent.codex-cli",
+      labelKey: "agents.runtime.codexCli",
       source: "path",
       available: true,
       authenticated: true,
@@ -256,7 +262,21 @@ describe("PluginMarketplace", () => {
       executablePath: "C:\\Tools\\codex.exe",
       version: "codex-cli 0.146.0",
       failure: null,
+      checkedAt: "2026-08-07T00:00:00Z",
     }]);
+    agentRuntimeApiMocks.updateAgentRuntime.mockResolvedValue({
+      id: "codex-cli",
+      pluginId: "latotex.agent.codex-cli",
+      labelKey: "agents.runtime.codexCli",
+      source: "path",
+      available: true,
+      authenticated: true,
+      enabled: true,
+      executablePath: "C:\\Tools\\codex.exe",
+      version: "codex-cli 0.147.0",
+      failure: null,
+      checkedAt: "2026-08-07T00:01:00Z",
+    });
     const onOpenAgentTerminal = vi.fn();
     const onOpenAgentControl = vi.fn();
     const container = document.createElement("div");
@@ -281,6 +301,9 @@ describe("PluginMarketplace", () => {
     const profilesButton = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("plugins.agentRuntime.useForProfiles")
     );
+    const updateButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("plugins.agentRuntime.update")
+    );
     expect(terminalButton?.disabled).toBe(false);
 
     await act(async () => {
@@ -290,6 +313,12 @@ describe("PluginMarketplace", () => {
 
     expect(onOpenAgentTerminal).toHaveBeenCalledWith("codex-cli");
     expect(onOpenAgentControl).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      updateButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushAsyncUpdates();
+    });
+    expect(agentRuntimeApiMocks.updateAgentRuntime).toHaveBeenCalledWith("codex-cli");
 
     await act(async () => {
       root.unmount();

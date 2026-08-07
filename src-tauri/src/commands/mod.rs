@@ -4,6 +4,7 @@ pub(crate) mod agent_mcp_proxy;
 pub mod agent_rebuttal_workflow;
 pub mod agent_runtime;
 pub(crate) mod agent_runtime_launch;
+pub mod agent_runtime_update;
 pub mod agent_workflows;
 mod agent_workflows_context;
 pub mod analysis;

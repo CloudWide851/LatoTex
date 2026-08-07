@@ -1,10 +1,12 @@
 import { RefreshCw, Search, Store } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  cancelAgentRuntimeUpdate,
   detectAgentRuntime,
   listAgentRuntimes,
   pickAgentRuntimeExecutable,
   setAgentRuntimeEnabled,
+  updateAgentRuntime,
 } from "../../../shared/api/agent";
 import {
   getPluginCatalog,
@@ -28,7 +30,7 @@ import {
   verifyRuntimeAsset,
 } from "../../../shared/api/runtimeAssets";
 import type { AppSettings } from "../../../shared/types/app";
-import type { AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
+import type { AgentRuntimeAction, AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
 import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -44,6 +46,30 @@ import {
   type TranslationFn,
 } from "./pluginMarketplaceUtils";
 import { notifyPluginsChanged } from "./usePluginFileInterfaces";
+
+const AGENT_RUNTIME_ACTIONS = new Set<AgentRuntimeAction>([
+  "detect",
+  "select",
+  "enable",
+  "disable",
+  "update",
+  "cancel-update",
+  "terminal",
+  "profiles",
+]);
+
+function activeAgentRuntimeAction(
+  busyActionId: string | null,
+  pluginId: string,
+  runtimeId: string | undefined,
+): AgentRuntimeAction | null {
+  if (!runtimeId || !busyActionId?.startsWith(`${pluginId}:agent-runtime:${runtimeId}:`)) {
+    return null;
+  }
+  const segments = busyActionId.split(":");
+  const action = segments[segments.length - 1] as AgentRuntimeAction | undefined;
+  return action && AGENT_RUNTIME_ACTIONS.has(action) ? action : null;
+}
 
 export function PluginMarketplace(props: {
   settings: AppSettings | null;
@@ -215,7 +241,7 @@ export function PluginMarketplace(props: {
   const runAgentRuntimeAction = async (
     pluginId: string,
     runtimeId: AgentRuntimeId,
-    action: "detect" | "select" | "enable" | "disable" | "terminal" | "profiles",
+    action: AgentRuntimeAction,
   ) => {
     if (action === "profiles") {
       onOpenAgentControl?.();
@@ -225,6 +251,15 @@ export function PluginMarketplace(props: {
       onOpenAgentTerminal?.(runtimeId);
       return;
     }
+    if (action === "cancel-update") {
+      try {
+        await cancelAgentRuntimeUpdate(runtimeId);
+        setStatus(t("plugins.agentRuntime.cancelUpdateDone"));
+      } catch {
+        setStatus(t("plugins.actionFailed"));
+      }
+      return;
+    }
     if (busyActionId) return;
     setBusyActionId(`${pluginId}:agent-runtime:${runtimeId}:${action}`);
     try {
@@ -232,11 +267,15 @@ export function PluginMarketplace(props: {
         ? await detectAgentRuntime(runtimeId)
         : action === "select"
           ? await pickAgentRuntimeExecutable(runtimeId)
-          : await setAgentRuntimeEnabled(runtimeId, action === "enable");
+          : action === "update"
+            ? await updateAgentRuntime(runtimeId)
+            : await setAgentRuntimeEnabled(runtimeId, action === "enable");
       if (next) replaceAgentRuntime(next);
       if (next || action !== "select") setStatus(t(`plugins.agentRuntime.${action}Done`));
-    } catch {
-      setStatus(t("plugins.actionFailed"));
+    } catch (error) {
+      setStatus(String(error).includes("agent.runtime.update_cancelled")
+        ? t("plugins.agentRuntime.updateCancelled")
+        : t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -406,6 +445,11 @@ export function PluginMarketplace(props: {
                 installedPlugin={installedPlugin}
                 locale={locale}
                 busy={Boolean(busyActionId?.startsWith(`${plugin.id}:`))}
+                activeAgentRuntimeAction={activeAgentRuntimeAction(
+                  busyActionId,
+                  plugin.id,
+                  agentRuntime?.agentRuntimeDetector?.runtimeId,
+                )}
                 toolchainStatus={toolchainStatus ?? null}
                 runtimeAssetStatus={runtimeAssetStatus ?? null}
                 toolchain={toolchain}
@@ -444,6 +488,11 @@ export function PluginMarketplace(props: {
           installedPlugin={installedPlugin}
           locale={locale}
           busy={Boolean(busyActionId?.startsWith(`${plugin.id}:`))}
+          activeAgentRuntimeAction={activeAgentRuntimeAction(
+            busyActionId,
+            plugin.id,
+            agentRuntime?.agentRuntimeDetector?.runtimeId,
+          )}
           toolchain={toolchain}
           runtimeAsset={runtimeAsset}
           agentRuntime={agentRuntime}

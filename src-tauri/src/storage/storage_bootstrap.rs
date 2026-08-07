@@ -113,6 +113,12 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS agent_runtime_snapshots (
+            runtime_id TEXT PRIMARY KEY,
+            descriptor_json TEXT NOT NULL,
+            checked_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS agent_mcp_sessions (
             session_id TEXT PRIMARY KEY,
             token_hash TEXT NOT NULL,
