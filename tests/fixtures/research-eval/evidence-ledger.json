@@ -1,0 +1,54 @@
+{
+  "evidencePackets": [
+    {
+      "id": "evidence:doi:10.1000/survival:v2",
+      "source": "crossref",
+      "doi": "10.1000/survival",
+      "sourceVersion": "v2",
+      "title": "Biomarker survival study",
+      "excerpt": "The biomarker treatment improved survival in the prespecified cohort.",
+      "locator": { "page": 4, "section": "Results", "paragraph": "2" },
+      "retractionStatus": "clear",
+      "correctionStatus": "corrected"
+    },
+    {
+      "id": "evidence:doi:10.1000/null:v1",
+      "source": "pubmed",
+      "doi": "10.1000/null",
+      "sourceVersion": "v1",
+      "title": "Independent null replication",
+      "excerpt": "No statistically significant survival difference was observed in the replication cohort.",
+      "locator": { "page": 7, "section": "Outcomes", "paragraph": "1" },
+      "retractionStatus": "clear",
+      "correctionStatus": "none"
+    }
+  ],
+  "claimAssessments": [
+    {
+      "claim": "The biomarker treatment improved survival in the prespecified cohort.",
+      "status": "supported",
+      "evidenceIds": ["evidence:doi:10.1000/survival:v2"],
+      "repairAttempted": false,
+      "requiresUnconfirmedLabel": false
+    },
+    {
+      "claim": "The treatment improves survival in every population.",
+      "status": "contradicted",
+      "evidenceIds": ["evidence:doi:10.1000/null:v1"],
+      "repairAttempted": true,
+      "requiresUnconfirmedLabel": true
+    },
+    {
+      "claim": "The biomarker is effective for pediatric disease.",
+      "status": "insufficient",
+      "evidenceIds": [],
+      "repairAttempted": true,
+      "requiresUnconfirmedLabel": true
+    }
+  ],
+  "expected": {
+    "packetRecall": 1,
+    "citationAccuracy": 1,
+    "unsupportedClaimRate": 0
+  }
+}

@@ -25,6 +25,8 @@ import { zhCN_misc } from "./misc";
 import { zhCN_terminal } from "./terminal";
 import { zhCN_agentControl } from "./agentControl";
 import { zhCN_knowledge } from "./knowledge";
+import { zhCN_researchWorkbench } from "./researchWorkbench";
+import { zhCN_researchAgentUi } from "./researchAgentUi";
 
 const zhCNRaw = {
   ...zhCN_app,
@@ -53,6 +55,8 @@ const zhCNRaw = {
   ...zhCN_terminal,
   ...zhCN_agentControl,
   ...zhCN_knowledge,
+  ...zhCN_researchWorkbench,
+  ...zhCN_researchAgentUi,
 } as const;
 
 export const zhCN: Record<MessageKey, string> = zhCNRaw as Record<MessageKey, string>;

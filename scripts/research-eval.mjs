@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -96,6 +97,35 @@ function mergeWebFixture(providerLists) {
     provenance: [item.source],
     rrfScore: 0,
   }));
+}
+
+function evaluateEvidenceLedger(fixture) {
+  const packets = fixture.evidencePackets;
+  const packetIds = new Set(packets.map((packet) => packet.id));
+  assert.equal(packetIds.size, packets.length);
+  const replayable = packets.filter((packet) =>
+    packet.source
+    && packet.title
+    && packet.excerpt
+    && packet.locator?.section
+    && createHash("sha256").update(packet.excerpt).digest("hex").length === 64);
+  assert.ok(packets.some((packet) => packet.correctionStatus === "corrected"));
+  assert.ok(packets.every((packet) => ["clear", "retracted", "corrected", "unknown"].includes(packet.retractionStatus)));
+
+  const citedEvidenceIds = fixture.claimAssessments.flatMap((assessment) => assessment.evidenceIds);
+  const validCitationCount = citedEvidenceIds.filter((id) => packetIds.has(id)).length;
+  const unsupportedWithoutLabel = fixture.claimAssessments.filter((assessment) =>
+    ["contradicted", "insufficient"].includes(assessment.status)
+    && !assessment.requiresUnconfirmedLabel);
+  assert.ok(fixture.claimAssessments
+    .filter((assessment) => assessment.status === "supported")
+    .every((assessment) => assessment.evidenceIds.length > 0));
+  assert.ok(fixture.claimAssessments.every((assessment) => typeof assessment.repairAttempted === "boolean"));
+  return {
+    packetRecall: replayable.length / packets.length,
+    citationAccuracy: citedEvidenceIds.length === 0 ? 1 : validCitationCount / citedEvidenceIds.length,
+    unsupportedClaimRate: unsupportedWithoutLabel.length / fixture.claimAssessments.length,
+  };
 }
 
 function mean(values) {
@@ -212,6 +242,12 @@ try {
   assert.deepEqual(mergedWeb.map((item) => item.source), ["duckduckgo", "wikipedia"]);
   assert.ok(mergedWeb.every((item) => item.rrfScore === 0));
 
+  const evidenceLedgerFixture = JSON.parse(
+    fs.readFileSync(path.join(fixtureRoot, "evidence-ledger.json"), "utf8"),
+  );
+  const evidenceLedger = evaluateEvidenceLedger(evidenceLedgerFixture);
+  assert.deepEqual(evidenceLedger, evidenceLedgerFixture.expected);
+
   const analysisResearchPlanBundle = path.join(tempRoot, "analysis-research-plan.mjs");
   await build({
     entryPoints: [path.join(repoRoot, "src", "app", "hooks", "analysisResearchPlan.ts")],
@@ -279,6 +315,7 @@ try {
 
   console.log(JSON.stringify({
     status: "ok",
+    evidenceLedger,
     knowledgeRetrieval,
     checks: [
       "citation-search",
@@ -291,6 +328,9 @@ try {
       "academic-web-evidence-categorization",
       "semantic-scholar-europe-pmc-fixtures",
       "identifier-first-stable-academic-rrf",
+      "evidence-packet-replayability",
+      "citation-reference-accuracy",
+      "unsupported-claim-labeling",
       "local-data-network-skip",
       "bibtex-evidence-levels",
       "deterministic-statistics-fixture",

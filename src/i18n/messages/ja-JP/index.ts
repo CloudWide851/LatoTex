@@ -5,6 +5,9 @@ import { jaJP_research } from "./research";
 import { jaJP_scientific } from "./scientific";
 import { jaJP_knowledge } from "./knowledge";
 import { jaJP_pluginAgents } from "./pluginAgents";
+import { jaJP_researchWorkbench } from "./researchWorkbench";
+import { jaJP_researchAgentUi } from "./researchAgentUi";
+import { jaJP_chat } from "./chat";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_terminal,
@@ -13,6 +16,9 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_scientific,
   ...jaJP_knowledge,
   ...jaJP_pluginAgents,
+  ...jaJP_researchWorkbench,
+  ...jaJP_researchAgentUi,
+  ...jaJP_chat,
   "settings.agentSkillsTitle": "研究 Skills",
   "settings.agentSkillsHint": "検証済みの研究ガイダンスは、関連する文献・データ分析ワークフローでのみ読み込まれます。",
   "settings.skillCustomDescription": "承認済みの Codex または Agent Skill ディレクトリにあるカスタム研究ガイダンスです。",

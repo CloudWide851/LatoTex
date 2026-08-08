@@ -1,0 +1,205 @@
+import { invokeCommand } from "./core";
+import type {
+  ClaimEvidenceAssessment,
+  AgentResourceLock,
+  EvidencePacket,
+  ResearchChatMigrationResult,
+  ResearchChatStore,
+  ResearchAgentRun,
+  ResearchCapabilityDescriptor,
+  ResearchPlanApproval,
+  ResearchPlanExecutionAccepted,
+  ResearchPlanVersion,
+  ResearchTask,
+  ResearchUiCommand,
+  ResearchWorkspaceSnapshot,
+} from "../types/researchAgent";
+
+export const RESEARCH_RUN_CHANGED_EVENT = "latotex.research.run.changed";
+
+function emitResearchRunChanged(projectId: string) {
+  if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(RESEARCH_RUN_CHANGED_EVENT, { detail: { projectId } }));
+}
+
+export function getResearchWorkspace(projectId: string): Promise<ResearchWorkspaceSnapshot> {
+  return invokeCommand<ResearchWorkspaceSnapshot>("research_workspace_get", {
+    input: { projectId },
+  });
+}
+
+export function createResearchTask(projectId: string, goal: string): Promise<ResearchTask> {
+  return invokeCommand<ResearchTask>("research_task_create", {
+    input: { projectId, goal },
+  });
+}
+
+export function saveResearchPlan(input: {
+  projectId: string;
+  taskId: string;
+  sourceMessage: string;
+  authorizedProjectIds: string[];
+  steps: Array<{
+    id?: string;
+    enabled: boolean;
+    dependencies: string[];
+    capability: string;
+    input: unknown;
+    riskLevel: "read" | "write" | "high";
+  }>;
+}): Promise<ResearchPlanVersion> {
+  return invokeCommand<ResearchPlanVersion>("research_plan_save", { input });
+}
+
+export function approveResearchPlan(
+  projectId: string,
+  taskId: string,
+  version: number,
+): Promise<ResearchPlanVersion> {
+  return invokeCommand<ResearchPlanVersion>("research_plan_approve", {
+    input: { projectId, taskId, version },
+  });
+}
+
+export function getResearchChatStore(projectId: string): Promise<ResearchChatStore> {
+  return invokeCommand<ResearchChatStore>("research_chat_store_get", {
+    input: { projectId },
+  });
+}
+
+export function replaceResearchChatStore(
+  projectId: string,
+  store: ResearchChatStore,
+): Promise<ResearchChatStore> {
+  return invokeCommand<ResearchChatStore>("research_chat_store_replace", {
+    input: { projectId, store },
+  });
+}
+
+export function migrateResearchChatStore(
+  projectId: string,
+  store: ResearchChatStore,
+): Promise<ResearchChatMigrationResult> {
+  return invokeCommand<ResearchChatMigrationResult>("research_chat_store_migrate", {
+    input: { projectId, migrationId: "localstorage-chat-v1", store },
+  });
+}
+
+export function getResearchCapabilityRegistry(): Promise<ResearchCapabilityDescriptor[]> {
+  return invokeCommand<ResearchCapabilityDescriptor[]>("research_capability_registry");
+}
+
+export async function executeResearchPlan(
+  projectId: string,
+  taskId: string,
+  version: number,
+): Promise<ResearchPlanExecutionAccepted> {
+  const accepted = await invokeCommand<ResearchPlanExecutionAccepted>("research_plan_execute", {
+    input: { projectId, taskId, version },
+  });
+  emitResearchRunChanged(projectId);
+  return accepted;
+}
+
+export function listResearchRuns(
+  projectId?: string | null,
+  includeTerminal = false,
+): Promise<ResearchAgentRun[]> {
+  return invokeCommand<ResearchAgentRun[]>("research_run_list", {
+    input: { projectId: projectId ?? null, includeTerminal },
+  });
+}
+
+export function listResearchUiCommands(projectId: string): Promise<ResearchUiCommand[]> {
+  return invokeCommand<ResearchUiCommand[]>("research_ui_command_list", {
+    input: { projectId },
+  });
+}
+
+export async function resolveResearchUiCommand(input: {
+  projectId: string;
+  runId: string;
+  stepId: string;
+  status: "completed" | "failed";
+  result?: unknown;
+  diagnosticCode?: string | null;
+}): Promise<ResearchPlanExecutionAccepted> {
+  const accepted = await invokeCommand<ResearchPlanExecutionAccepted>("research_ui_command_resolve", { input });
+  emitResearchRunChanged(input.projectId);
+  return accepted;
+}
+
+export async function pauseResearchRun(projectId: string, runId: string) {
+  const accepted = await invokeCommand<ResearchPlanExecutionAccepted>("research_run_pause", {
+    input: { projectId, runId },
+  });
+  emitResearchRunChanged(projectId);
+  return accepted;
+}
+
+export async function resumeResearchRun(projectId: string, runId: string) {
+  const accepted = await invokeCommand<ResearchPlanExecutionAccepted>("research_run_resume", {
+    input: { projectId, runId },
+  });
+  emitResearchRunChanged(projectId);
+  return accepted;
+}
+
+export async function cancelResearchRun(projectId: string, runId: string) {
+  const accepted = await invokeCommand<ResearchPlanExecutionAccepted>("research_run_cancel", {
+    input: { projectId, runId },
+  });
+  emitResearchRunChanged(projectId);
+  return accepted;
+}
+
+export function listResearchPlanApprovals(projectId: string): Promise<ResearchPlanApproval[]> {
+  return invokeCommand<ResearchPlanApproval[]>("research_plan_approval_list", {
+    input: { projectId },
+  });
+}
+
+export function listResearchResourceLocks(projectId: string): Promise<AgentResourceLock[]> {
+  return invokeCommand<AgentResourceLock[]>("research_resource_lock_list", {
+    input: { projectId },
+  });
+}
+
+export async function resolveResearchPlanApproval(
+  projectId: string,
+  approvalId: string,
+  decision: "approved" | "rejected",
+): Promise<ResearchPlanExecutionAccepted> {
+  const accepted = await invokeCommand<ResearchPlanExecutionAccepted>("research_plan_approval_resolve", {
+    input: { projectId, approvalId, decision },
+  });
+  emitResearchRunChanged(projectId);
+  return accepted;
+}
+
+export function listResearchEvidence(projectId: string, taskId: string): Promise<EvidencePacket[]> {
+  return invokeCommand<EvidencePacket[]>("research_evidence_list", {
+    input: { projectId, taskId },
+  });
+}
+
+export function assessResearchClaim(input: {
+  projectId: string;
+  taskId: string;
+  claim: string;
+  evidenceIds: string[];
+  repairedClaim?: string | null;
+}): Promise<ClaimEvidenceAssessment> {
+  return invokeCommand<ClaimEvidenceAssessment>("research_claim_assess", { input });
+}
+
+export function listResearchClaimAssessments(
+  projectId: string,
+  taskId: string,
+): Promise<ClaimEvidenceAssessment[]> {
+  return invokeCommand<ClaimEvidenceAssessment[]>("research_claim_assessment_list", {
+    input: { projectId, taskId },
+  });
+}

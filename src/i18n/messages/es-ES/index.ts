@@ -5,6 +5,9 @@ import { esES_research } from "./research";
 import { esES_scientific } from "./scientific";
 import { esES_knowledge } from "./knowledge";
 import { esES_pluginAgents } from "./pluginAgents";
+import { esES_researchWorkbench } from "./researchWorkbench";
+import { esES_researchAgentUi } from "./researchAgentUi";
+import { esES_chat } from "./chat";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_terminal,
@@ -13,6 +16,9 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_scientific,
   ...esES_knowledge,
   ...esES_pluginAgents,
+  ...esES_researchWorkbench,
+  ...esES_researchAgentUi,
+  ...esES_chat,
   "settings.agentSkillsTitle": "Skills de investigación",
   "settings.agentSkillsHint": "La guía validada se carga solo en flujos relevantes de literatura y análisis de datos.",
   "settings.skillCustomDescription": "Guía personalizada desde un directorio aprobado de Skills de Codex o Agent.",
