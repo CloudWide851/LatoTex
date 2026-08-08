@@ -36,6 +36,7 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import { cn } from "../../../lib/utils";
+import { requestAppConfirm } from "../../dialog/appDialogBridge";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
 import { PluginMarketplaceDetailDialog } from "./PluginMarketplaceDetailDialog";
 import { installedPluginForMarketplaceEntry } from "./pluginMarketplaceInstallState";
@@ -183,9 +184,11 @@ export function PluginMarketplace(props: {
         (permission) => HIGH_RISK_PLUGIN_PERMISSIONS.has(permission) && !approved.has(permission),
       );
       if (enabling && missingHighRisk.length > 0) {
-        const confirmed = window.confirm(
-          `${t("plugins.highRiskEnableConfirm")}\n\n${missingHighRisk.join("\n")}`,
-        );
+        const confirmed = await requestAppConfirm({
+          title: t("plugins.highRiskEnableConfirm"),
+          details: missingHighRisk,
+          tone: "permission",
+        });
         if (!confirmed) {
           return;
         }

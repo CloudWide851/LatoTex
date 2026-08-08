@@ -4,6 +4,7 @@ import { LatexWorkspaceEditorPanel } from "../editor/LatexWorkspaceEditorPanel";
 import type { AgentTerminalLaunchRequest } from "../terminal/terminalTypes";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 import { WorkspaceOnboardingChecklist } from "./WorkspaceOnboardingChecklist";
+import { findResearchWriteLock } from "../../../shared/utils/researchResourceLock";
 
 export function WorkspaceLatexEditorSurface(props: {
   shell: AppWorkspaceShellProps;
@@ -38,6 +39,7 @@ export function WorkspaceLatexEditorSurface(props: {
   if (!shell.activeProjectId) {
     return null;
   }
+  const selectedFileWriteLock = findResearchWriteLock(shell.agentResourceLocks, shell.selectedFile);
 
   return (
     <div className="relative h-full min-h-0">
@@ -48,6 +50,7 @@ export function WorkspaceLatexEditorSurface(props: {
         selectedIsExcel={props.selectedIsExcel}
         selectedCodeLanguage={props.selectedCodeLanguage}
         scientificPluginIds={props.scientificPluginIds}
+        selectedFileWriteLock={selectedFileWriteLock}
         channelPrefs={shell.channelPrefs ?? null}
         showChatWorkspace={props.showChatWorkspace}
         chatTabOpen={props.chatTabOpen}

@@ -181,6 +181,32 @@ describe("ExplorerTree", () => {
     expect(onSelect).toHaveBeenLastCalledWith("c.tex");
   });
 
+  it("marks only matching workspace files as locked by the active Agent run", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          tree={TREE}
+          selectedPath="a.tex"
+          lockedPaths={["./A.TEX"]}
+          onSelect={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const lockedRow = container.querySelector("[data-path='a.tex']");
+    const unlockedRow = container.querySelector("[data-path='b.tex']");
+    expect(lockedRow?.querySelector("[data-agent-resource-lock='true']")).not.toBeNull();
+    expect(unlockedRow?.querySelector("[data-agent-resource-lock='true']")).toBeNull();
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it("allows creating library folders from the root context menu", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

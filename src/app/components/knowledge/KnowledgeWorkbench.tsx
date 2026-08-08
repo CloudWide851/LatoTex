@@ -29,6 +29,7 @@ import type {
   KnowledgeSearchResponse,
 } from "../../../shared/types/app";
 import { knowledgeFailureMessage } from "../../hooks/knowledgeMutationApproval";
+import { requestAppConfirm } from "../../dialog/appDialogBridge";
 import {
   KnowledgeEntryMenu,
   type KnowledgeEntryMenuState,
@@ -289,7 +290,11 @@ export function KnowledgeWorkbench(props: {
     }
   };
   const runUnarchive = async (item: KnowledgeItem) => {
-    if (!window.confirm(t("knowledge.confirmUnarchive"))) {
+    const confirmed = await requestAppConfirm({
+      title: t("knowledge.confirmUnarchive"),
+      tone: "danger",
+    });
+    if (!confirmed) {
       return;
     }
     setBusyItemId(item.itemId);

@@ -4,7 +4,7 @@ import {
   startLatexReviewFix,
 } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
-import { readFile, writeFile } from "../../shared/api/workspace";
+import { readFile } from "../../shared/api/workspace";
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentTeamMode } from "../../shared/types/app";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
@@ -36,6 +36,7 @@ import { executeSubmissionPreflightCommand } from "./agentSubmissionPreflightWor
 import { compileProposalPreviewWithAutoFix } from "./agentProposalPreviewCompile";
 import { buildAnalysisPrompt } from "./agentTaskPrompt";
 import { runAgentThroughEvents } from "./agentRunEvents";
+import { shouldAllowTargetPath } from "./agentNonLatexPermission";
 
 const MAX_AGENT_MESSAGES = 200;
 
@@ -44,10 +45,6 @@ type AgentMessageSetter = Dispatch<SetStateAction<AgentChatMessage[]>>;
 type AgentPhase = "idle" | "running" | "done" | "error";
 type AgentStatusKey = "agent.statusIdle" | "agent.statusRunning" | "agent.statusDone" | "agent.statusError";
 
-type AgentPermissions = {
-  version: number;
-  allowedNonLatexTargets: string[];
-};
 function nextAgentId(role: "user" | "agent", suffix = ""): string {
   return `${Date.now()}-${role}${suffix}`;
 }
@@ -132,74 +129,6 @@ async function loadOriginalContent(params: {
   } catch {
     return "";
   }
-}
-
-async function loadAgentPermissions(activeProjectId: string): Promise<AgentPermissions> {
-  try {
-    const result = await readFile(activeProjectId, ".latotex/agent-permissions.json");
-    const parsed = JSON.parse(result.content) as Partial<AgentPermissions>;
-    return {
-      version: 1,
-      allowedNonLatexTargets: Array.isArray(parsed.allowedNonLatexTargets)
-        ? parsed.allowedNonLatexTargets.map((item) => normalizePath(String(item)))
-        : [],
-    };
-  } catch {
-    return { version: 1, allowedNonLatexTargets: [] };
-  }
-}
-
-async function saveAgentPermissions(
-  activeProjectId: string,
-  permissions: AgentPermissions,
-): Promise<void> {
-  await writeFile(
-    activeProjectId,
-    ".latotex/agent-permissions.json",
-    `${JSON.stringify(permissions, null, 2)}\n`,
-  );
-}
-
-async function shouldAllowTargetPath(params: {
-  activeProjectId: string;
-  targetPath: string;
-  explicitPath: boolean;
-  t: (key: any) => string;
-  setToast: (value: { type: "info" | "error"; message: string }) => void;
-}): Promise<boolean> {
-  const { activeProjectId, targetPath, explicitPath, t, setToast } = params;
-  if (isLatexPath(targetPath)) {
-    return true;
-  }
-  if (!explicitPath) {
-    setToast({ type: "info", message: t("agent.nonLatexSkipped") });
-    return false;
-  }
-  const permissions = await loadAgentPermissions(activeProjectId);
-  if (permissions.allowedNonLatexTargets.includes(targetPath)) {
-    return true;
-  }
-  const promptText = t("agent.nonLatexPrompt")
-    .replace("{path}", targetPath)
-    .trim();
-  const response = (window.prompt(promptText, "no") ?? "no")
-    .trim()
-    .toLowerCase();
-  if (response === "yes") {
-    return true;
-  }
-  if (response === "remember") {
-    permissions.allowedNonLatexTargets = Array.from(
-      new Set([...permissions.allowedNonLatexTargets, targetPath]),
-    );
-    await saveAgentPermissions(activeProjectId, permissions);
-    setToast({ type: "info", message: t("agent.nonLatexRemembered") });
-    return true;
-  }
-  if (response !== "no") {
-    setToast({ type: "error", message: t("agent.nonLatexInvalidChoice") });
-  }
-  return false;
 }
 
 export async function runAgentWorkflow(params: {

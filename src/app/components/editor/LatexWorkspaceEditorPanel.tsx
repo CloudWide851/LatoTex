@@ -1,8 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { PenTool, Play, Redo2, Save, Terminal, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentProposalMiniBar } from "./AgentProposalMiniBar";
-import { CompileAssistPopover } from "./CompileAssistPopover";
 import { EditorTabsBar } from "./EditorTabsBar";
 import { getEditorSurfaceThemeName } from "./editorSurfaceTheme";
 import { createWorkspaceEditorMonacoOptions } from "./editorMonacoOptions";
@@ -12,7 +10,7 @@ import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
 import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
-import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
+import { buildAgentCommandItems } from "../workspace/workspaceShellUtils";
 import { emitWorkspaceLayoutRefresh, WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
 import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
 import type { ShareEditAnnotation } from "../../hooks/shareEditAnnotations";
@@ -24,9 +22,10 @@ import {
 } from "../workspace/workspaceShellLazy";
 import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import type { AgentTerminalLaunchRequest } from "../terminal/terminalTypes";
-import { isTexPath } from "../../../shared/utils/fileKind";
 import { markFirstEditableTex } from "./editorStartupPerformance";
-import { ScientificEditorRunControl } from "./ScientificEditorRunControl";
+import type { AgentResourceLock } from "../../../shared/types/researchAgent";
+import { AgentEditorLockBanner } from "./AgentEditorLockBanner";
+import { LatexEditorToolbarActions } from "./LatexEditorToolbarActions";
 
 type TranslationFn = (key: any) => string;
 const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
@@ -59,6 +58,7 @@ export function LatexWorkspaceEditorPanel(props: {
   selectedIsExcel: boolean;
   selectedCodeLanguage: CodeLanguageInfo;
   scientificPluginIds: string[];
+  selectedFileWriteLock: AgentResourceLock | null;
   editorContent: string;
   fileList: string[];
   editorTabs: any[];
@@ -150,6 +150,7 @@ export function LatexWorkspaceEditorPanel(props: {
     selectedIsExcel,
     selectedCodeLanguage,
     scientificPluginIds,
+    selectedFileWriteLock,
     editorContent,
     fileList,
     editorTabs,
@@ -237,10 +238,13 @@ export function LatexWorkspaceEditorPanel(props: {
   const editorInstanceRef = useRef<any | null>(null);
   const agentCommandItems = buildAgentCommandItems(t);
   const editorLanguage = selectedCodeLanguage.monaco;
-  const canCompileSelectedFile = isTexPath(selectedFile);
   const editorOptions = useMemo(
-    () => createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot, fontScale),
-    [fontScale, monacoOverflowWidgetRoot],
+    () => createWorkspaceEditorMonacoOptions(
+      monacoOverflowWidgetRoot,
+      fontScale,
+      Boolean(selectedFileWriteLock),
+    ),
+    [fontScale, monacoOverflowWidgetRoot, selectedFileWriteLock],
   );
 
   useEffect(() => {
@@ -321,6 +325,7 @@ export function LatexWorkspaceEditorPanel(props: {
         <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
           <LazyChatWorkspace
             projectId={activeProjectId}
+            selectedFile={selectedFile}
             channelPrefs={channelPrefs}
             suspended={suspended}
             chatAgentModelId={chatAgentModelId}
@@ -345,21 +350,28 @@ export function LatexWorkspaceEditorPanel(props: {
           {t("editor.excelPreviewOnly")}
         </div>
       ) : (
-        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-          <LazyWorkspaceMonacoEditor
-            path={selectedFile ?? undefined}
-            language={editorLanguage}
-            theme={editorTheme}
-            value={editorContent}
-            options={editorOptions}
-            editorInstanceRef={editorInstanceRef}
-            onChange={onEditorChange}
-            onMount={(editor, monaco) => {
-              markFirstEditableTex(selectedFile);
-              onEditorMount(editor, monaco);
-            }}
+        <div className="relative h-full min-h-0">
+          <AgentEditorLockBanner
+            lock={selectedFileWriteLock}
+            title={t("research.agent.resourceLocked")}
+            description={t("research.agent.editorReadOnly")}
           />
-        </Suspense>
+          <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+            <LazyWorkspaceMonacoEditor
+              path={selectedFile ?? undefined}
+              language={editorLanguage}
+              theme={editorTheme}
+              value={editorContent}
+              options={editorOptions}
+              editorInstanceRef={editorInstanceRef}
+              onChange={onEditorChange}
+              onMount={(editor, monaco) => {
+                markFirstEditableTex(selectedFile);
+                onEditorMount(editor, monaco);
+              }}
+            />
+          </Suspense>
+        </div>
       )}
 
       {showChatWorkspace ? null : (
@@ -451,89 +463,34 @@ export function LatexWorkspaceEditorPanel(props: {
               t={t}
             />
           </div>
-          <div className="editor-toolbar-action-group flex min-w-max items-center justify-end gap-2">
-            <ScientificEditorRunControl
-              projectId={activeProjectId ?? ""}
-              selectedFile={selectedFile}
-              editorContent={editorContent}
-              enabledPluginIds={scientificPluginIds}
-              getSelectedCode={() => {
-                const editor = editorInstanceRef.current;
-                const selection = editor?.getSelection?.();
-                return selection ? editor?.getModel?.()?.getValueInRange?.(selection) ?? "" : "";
-              }}
-              t={t}
-            />
-            <button
-              className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
-              onClick={onEditorUndo}
-              disabled={busy}
-              title={composeTitleWithShortcut(t("workspace.undo"), t("shortcut.undo"))}
-              aria-label={composeTitleWithShortcut(t("workspace.undo"), t("shortcut.undo"))}
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
-              onClick={onEditorRedo}
-              disabled={busy}
-              title={composeTitleWithShortcut(t("workspace.redo"), t("shortcut.redo"))}
-              aria-label={composeTitleWithShortcut(t("workspace.redo"), t("shortcut.redo"))}
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
-            <button
-              className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
-              onClick={onSaveFile}
-              disabled={busy}
-              title={composeTitleWithShortcut(t("workspace.save"), t("shortcut.save"))}
-              aria-label={composeTitleWithShortcut(t("workspace.save"), t("shortcut.save"))}
-            >
-              <Save className="h-4 w-4" />
-            </button>
-            <button
-              className={`panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50 ${terminalVisible ? "editor-tab--active" : ""}`}
-              onClick={onTerminalToggle}
-              disabled={busy}
-              title={t("terminal.title")}
-              aria-label={t("terminal.title")}
-            >
-              <Terminal className="h-4 w-4" />
-            </button>
-            <div className="relative">
-              {selectedIsDraw ? (
-                <button
-                  className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
-                  onClick={() => onPageChange("draw")}
-                  disabled={busy}
-                  title={t("workspace.openDrawPage")}
-                  aria-label={t("workspace.openDrawPage")}
-                >
-                  <PenTool className="h-4 w-4" />
-                </button>
-              ) : null}
-              <button
-                className="panel-topbar-btn editor-toolbar-btn editor-toolbar-btn--primary motion-hover-rise disabled:opacity-50"
-                onClick={onCompileClick}
-                disabled={busy || !canCompileSelectedFile}
-                title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
-                aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
-              >
-                <Play className="h-4 w-4" />
-              </button>
-              <CompileAssistPopover
-                visible={showCompileAssist}
-                diagnostics={compileAssistDiagnostics}
-                hint={compileAssistHint}
-                onDismiss={onCompileAssistDismiss}
-                onAutoFix={() => {
-                  void onCompileAssistAutoFix();
-                }}
-                autoFixDisabled={busy || compileAssistAutoFixBusy}
-                t={t}
-              />
-            </div>
-          </div>
+          <LatexEditorToolbarActions
+            activeProjectId={activeProjectId}
+            busy={busy}
+            selectedFile={selectedFile}
+            selectedIsDraw={selectedIsDraw}
+            selectedFileWriteLocked={Boolean(selectedFileWriteLock)}
+            editorContent={editorContent}
+            scientificPluginIds={scientificPluginIds}
+            terminalVisible={terminalVisible}
+            showCompileAssist={showCompileAssist}
+            compileAssistDiagnostics={compileAssistDiagnostics}
+            compileAssistHint={compileAssistHint}
+            compileAssistAutoFixBusy={compileAssistAutoFixBusy}
+            getSelectedCode={() => {
+              const editor = editorInstanceRef.current;
+              const selection = editor?.getSelection?.();
+              return selection ? editor?.getModel?.()?.getValueInRange?.(selection) ?? "" : "";
+            }}
+            onEditorUndo={onEditorUndo}
+            onEditorRedo={onEditorRedo}
+            onSaveFile={onSaveFile}
+            onTerminalToggle={onTerminalToggle}
+            onOpenDraw={() => onPageChange("draw")}
+            onCompileClick={onCompileClick}
+            onCompileAssistDismiss={onCompileAssistDismiss}
+            onCompileAssistAutoFix={onCompileAssistAutoFix}
+            t={t}
+          />
         </div>
       </div>
 

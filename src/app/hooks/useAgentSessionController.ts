@@ -45,14 +45,19 @@ export function useAgentSessionController(params: {
   const [agentRollback, setAgentRollback] = useState<AgentRunRollback | null>(null);
   const [agentRollbackVisible, setAgentRollbackVisible] = useState(false);
   const runLaunchLockRef = useRef(false);
+  const previousProjectIdRef = useRef(activeProjectId);
 
   useEffect(() => {
+    if (previousProjectIdRef.current === activeProjectId) {
+      return;
+    }
+    previousProjectIdRef.current = activeProjectId;
     setAgentSessions([]);
     setAgentSessionPickerOpen(false);
     setAgentSessionPickerIndex(0);
     setAgentRollbackVisible(false);
     setAgentMessages([]);
-  }, [activeProjectId, selectedFile, setAgentMessages]);
+  }, [activeProjectId, setAgentMessages]);
 
   const handleAgentRollback = useCallback(() => {
     if (!agentRollback) {

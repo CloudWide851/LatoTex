@@ -3,6 +3,8 @@ import type { WorkspacePage } from "../shared/types/app";
 
 export const DEFAULT_PAGE_ORDER: WorkspacePage[] = PAGE_ITEMS.map((item) => item.id);
 
+const PAGE_GROUP = new Map(PAGE_ITEMS.map((item) => [item.id, item.group]));
+
 export function normalizeSidebarPageOrder(rawOrder: unknown): WorkspacePage[] {
   const valid = new Set<WorkspacePage>(DEFAULT_PAGE_ORDER);
   const next: WorkspacePage[] = [];
@@ -19,7 +21,10 @@ export function normalizeSidebarPageOrder(rawOrder: unknown): WorkspacePage[] {
       next.push(page);
     }
   }
-  return next;
+  return [
+    ...next.filter((page) => PAGE_GROUP.get(page) === "research"),
+    ...next.filter((page) => PAGE_GROUP.get(page) === "tools"),
+  ];
 }
 
 export function moveSidebarPageOrderItem(

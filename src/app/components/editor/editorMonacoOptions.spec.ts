@@ -21,4 +21,9 @@ describe("editorMonacoOptions", () => {
     expect(options.lineHeight).toBe(28);
     expect(options.letterSpacing).toBe(0);
   });
+
+  it("supports resource-scoped Agent read-only mode without changing the default", () => {
+    expect(createWorkspaceEditorMonacoOptions().readOnly).toBe(false);
+    expect(createWorkspaceEditorMonacoOptions(null, 1, true).readOnly).toBe(true);
+  });
 });

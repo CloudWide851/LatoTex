@@ -24,6 +24,7 @@ import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel
 import { useLibraryTranslationDriftRefresh } from "./library/useLibraryTranslationDriftRefresh";
 import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
+import { requestAppConfirm } from "../dialog/appDialogBridge";
 
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
@@ -178,10 +179,9 @@ export function LibraryDocumentViewer(props: {
   const pdfOpenError = httpApprovalRequired
     ? t("library.viewer.remotePdfHttpBlocked")
     : pdfPreviewError ?? pdfObjectUrlError;
-  const confirmHttpDownload = useCallback(
-    () => window.confirm(t("library.viewer.remotePdfHttpConfirm")),
-    [t],
-  );
+  const confirmHttpDownload = useCallback(() => requestAppConfirm({
+    title: t("library.viewer.remotePdfHttpConfirm"), tone: "permission",
+  }), [t]);
 
   useLibraryTranslationDriftRefresh({
     projectId,

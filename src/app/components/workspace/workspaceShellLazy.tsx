@@ -43,6 +43,29 @@ export const LazySubmissionCiWorkspace = lazy(async () => {
   return { default: module.SubmissionCiWorkspace };
 });
 
+export const LazyProjectOverviewWorkspace = lazy(async () => {
+  const module = await import("../research/ProjectOverviewWorkspace");
+  return { default: module.ProjectOverviewWorkspace };
+});
+
+export function LazyProjectOverviewWorkspaceSurface(props: { shell: AppWorkspaceShellProps }) {
+  const { shell } = props;
+  return (
+    <Suspense fallback={<WorkspacePanelFallback label={shell.t("overview.loading")} />}>
+      <LazyProjectOverviewWorkspace
+        projectId={shell.activeProjectId ?? ""}
+        libraryTree={shell.libraryTree}
+        compileDiagnostics={shell.compileDiagnostics}
+        compiledPdfUrl={shell.compiledPdfUrl}
+        settings={shell.settings}
+        chatAgentModelId={shell.chatAgentModelId}
+        onPageChange={shell.onPageChange}
+        t={shell.t}
+      />
+    </Suspense>
+  );
+}
+
 export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps, "settings" | "t" | "onPageChange"> & {
   onOpenAgentTerminal: (runtimeId: AgentRuntimeId) => void;
 }) {

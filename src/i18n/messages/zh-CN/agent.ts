@@ -70,7 +70,7 @@ export const zhCN_agent = {
   "agent.paper.notFound": "论文库中未找到该论文：{ref}",
   "agent.paper.ambiguous": "匹配到多个同名论文 \"{ref}\"，请使用完整相对路径。候选：{matches}",
   "agent.proposalPreviewed": "修改建议已直接预览到编辑器，请在下方接受或拒绝。",
-  "agent.nonLatexPrompt": "目标文件 {path} 不是 LaTeX 相关文件。输入 yes 表示仅本次执行，输入 remember 表示永久允许，输入 no 取消。",
+  "agent.nonLatexPrompt": "目标文件 {path} 不是 LaTeX 相关文件。请选择仅允许本次写入、为当前项目记住该权限，或拒绝写入。",
   "agent.nonLatexSkipped": "默认仅允许 Agent 修改 LaTeX 相关文件。",
   "agent.nonLatexRemembered": "已记住该非 LaTeX 文件的授权。",
   "agent.nonLatexInvalidChoice": "输入无效，请使用 yes、remember 或 no。",

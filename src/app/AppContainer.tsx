@@ -36,6 +36,8 @@ import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
 import { useOnboardingController } from "./hooks/useOnboardingController";
+import { useResearchAgentRuntime } from "./hooks/useResearchAgentRuntime";
+import { useResearchUiCommandContext } from "./hooks/useResearchUiCommandContext";
 import type { ProjectDeleteConfirmIntent } from "./components/ProjectDeleteConfirmDialog";
 
 type IntegrityIssue = {
@@ -607,6 +609,23 @@ export function AppContainer() {
     t,
   });
 
+  const researchUiCommandContext = useResearchUiCommandContext({
+    projectId: s.activeProjectId,
+    settings: s.settings,
+    activeAnalysisRunId: analysisWorkspace.activeRun?.id ?? null,
+    activeAnalysisReportHtml: analysisWorkspace.activeRunHtml,
+    setPage: s.setPage,
+    openWorkspaceFile: workspaceActions.openWorkspaceFile,
+    selectLibraryPath: s.setSelectedLibraryPath,
+    runAgentForPath: handlers.handleRunAgentForPath,
+    applyAgentProposal: handlers.handleAcceptAgentProposalByPath,
+    compilePath: handlers.handleCompilePath,
+    runFsAction: handlers.runFsAction,
+    persistSettings,
+    setSettings: s.setSettings,
+  });
+  const researchAgentRuntime = useResearchAgentRuntime(researchUiCommandContext);
+
   const panels = useAppPanelNodes({
     settings: s.settings,
     locale,
@@ -701,6 +720,8 @@ export function AppContainer() {
       handleSharePasswordReveal={shareSession.revealSharePassword}
       t={t}
       recoverWorkspaceLayout={panels.recoverWorkspaceLayout}
+      researchAgentRuntime={researchAgentRuntime}
+      agentResourceLocks={researchAgentRuntime.locks}
       page={s.page}
       pageRailItems={s.pageRailItems}
       shellLayout={panels.shellLayout}

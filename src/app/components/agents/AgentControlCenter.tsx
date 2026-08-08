@@ -2,6 +2,7 @@ import { Bot, Plus, RefreshCw, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { Select } from "../../../components/ui/select";
+import { requestAppConfirm } from "../../dialog/appDialogBridge";
 import {
   deleteAgentBinding,
   deleteAgentGraph,
@@ -124,7 +125,7 @@ export function AgentControlCenter(props: {
     };
     void persistProfile(copy);
   };
-  const removeProfile = (profile: AgentProfile) => {
+  const removeProfile = async (profile: AgentProfile) => {
     const affectedBindings = catalog?.bindings.filter((binding) => binding.profileId === profile.id).length ?? 0;
     const affectedNodes = catalog?.graphTemplates.reduce(
       (count, graph) => count + graph.nodes.filter((node) => node.profileId === profile.id).length,
@@ -133,8 +134,9 @@ export function AgentControlCenter(props: {
     const prompt = t("agents.profile.deleteConfirm")
       .replace("{bindings}", String(affectedBindings))
       .replace("{nodes}", String(affectedNodes));
-    if (!window.confirm(prompt)) return;
-    void runAction("profile-delete", async () => {
+    const confirmed = await requestAppConfirm({ title: prompt, tone: "danger" });
+    if (!confirmed) return;
+    await runAction("profile-delete", async () => {
       await deleteAgentProfile(profile.id);
       setSelectedProfileId("");
       await refresh();
@@ -159,9 +161,13 @@ export function AgentControlCenter(props: {
     };
     void persistGraph(copy);
   };
-  const removeGraph = (graph: AgentGraphTemplate) => {
-    if (!window.confirm(t("agents.graph.deleteConfirm"))) return;
-    void runAction("graph-delete", async () => {
+  const removeGraph = async (graph: AgentGraphTemplate) => {
+    const confirmed = await requestAppConfirm({
+      title: t("agents.graph.deleteConfirm"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    await runAction("graph-delete", async () => {
       await deleteAgentGraph(graph.id);
       setSelectedGraphId("");
       await refresh();

@@ -4,6 +4,7 @@ import type { AppOverlaysProps } from "./AppOverlays";
 import type { AppTopbarProps } from "./AppTopbar";
 import type { UnsavedChangesDialogProps } from "./editor/UnsavedChangesDialog";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
+import type { ResearchAgentRuntimeProjection } from "../hooks/useResearchAgentRuntime";
 
 type WorkspaceValueProps = Pick<
   AppWorkspaceShellProps,
@@ -40,6 +41,7 @@ type WorkspaceValueProps = Pick<
   | "agentRollbackVisible"
   | "events"
   | "explorerGitDecorations"
+  | "agentResourceLocks"
   | "settings"
   | "settingsPanel"
   | "gitPanel"
@@ -114,6 +116,7 @@ export type AppContainerViewProps = WorkspaceValueProps
     SHELL_MIN: AppWorkspaceShellProps["shellMin"];
     t: AppWorkspaceShellProps["t"];
     setSettings: Dispatch<SetStateAction<AppSettings | null>>;
+    researchAgentRuntime: ResearchAgentRuntimeProjection;
 
     handleProjectChange: AppTopbarProps["onProjectChange"];
     handleProjectDelete: AppTopbarProps["onProjectDelete"];

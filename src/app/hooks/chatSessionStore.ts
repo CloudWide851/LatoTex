@@ -1,3 +1,9 @@
+import {
+  getResearchChatStore,
+  migrateResearchChatStore,
+  replaceResearchChatStore,
+} from "../../shared/api/researchAgent";
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant" | "system";
@@ -14,7 +20,7 @@ export type ChatSession = {
   messages: ChatMessage[];
 };
 
-type ChatStorePayload = {
+export type ChatStorePayload = {
   sessions: ChatSession[];
   activeSessionId: string | null;
 };
@@ -36,6 +42,45 @@ function nowIso() {
 
 function sessionStorageKey(projectId: string) {
   return `latotex.chat.sessions.${projectId}`;
+}
+
+const chatStoreCache = new Map<string, ChatStorePayload>();
+
+function emptyChatStore(): ChatStorePayload {
+  return { sessions: [], activeSessionId: null };
+}
+
+function loadLegacyChatStore(projectId: string): ChatStorePayload {
+  if (typeof window === "undefined") {
+    return emptyChatStore();
+  }
+  try {
+    const raw = window.localStorage.getItem(sessionStorageKey(projectId));
+    if (!raw) {
+      return emptyChatStore();
+    }
+    const parsed = JSON.parse(raw) as Partial<ChatStorePayload>;
+    const sessions = Array.isArray(parsed.sessions)
+      ? parsed.sessions.map(sanitizeSession).filter((item): item is ChatSession => Boolean(item)).slice(-80)
+      : [];
+    if (sessions.length === 0) {
+      return emptyChatStore();
+    }
+    const activeSessionId = typeof parsed.activeSessionId === "string"
+      && sessions.some((item) => item.id === parsed.activeSessionId)
+      ? parsed.activeSessionId
+      : sessions[0]!.id;
+    return { sessions, activeSessionId };
+  } catch {
+    return emptyChatStore();
+  }
+}
+
+function removeLegacyChatStore(projectId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(sessionStorageKey(projectId));
 }
 
 export function createChatStoreChangedEvent(
@@ -120,29 +165,7 @@ function sanitizeSession(raw: unknown): ChatSession | null {
 }
 
 export function loadChatStore(projectId: string): ChatStorePayload {
-  if (typeof window === "undefined") {
-    return { sessions: [], activeSessionId: null };
-  }
-  try {
-    const raw = window.localStorage.getItem(sessionStorageKey(projectId));
-    if (!raw) {
-      return { sessions: [], activeSessionId: null };
-    }
-    const parsed = JSON.parse(raw) as Partial<ChatStorePayload>;
-    const sessions = Array.isArray(parsed.sessions)
-      ? parsed.sessions.map(sanitizeSession).filter((item): item is ChatSession => Boolean(item)).slice(-80)
-      : [];
-    if (sessions.length === 0) {
-      return { sessions: [], activeSessionId: null };
-    }
-    const activeSessionId = typeof parsed.activeSessionId === "string"
-      && sessions.some((item) => item.id === parsed.activeSessionId)
-      ? parsed.activeSessionId
-      : sessions[0]!.id;
-    return { sessions, activeSessionId };
-  } catch {
-    return { sessions: [], activeSessionId: null };
-  }
+  return chatStoreCache.get(projectId) ?? loadLegacyChatStore(projectId);
 }
 
 export function saveChatStore(
@@ -157,8 +180,43 @@ export function saveChatStore(
     sessions: sessions.slice(-80),
     activeSessionId,
   };
-  window.localStorage.setItem(sessionStorageKey(projectId), JSON.stringify(payload));
+  chatStoreCache.set(projectId, payload);
   emitChatStoreChanged({ projectId, sessions: payload.sessions, activeSessionId });
+  void replaceResearchChatStore(projectId, {
+    ...payload,
+    migrationCompleted: true,
+    diagnosticCode: null,
+  }).catch(() => undefined);
+}
+
+export async function hydrateChatStore(projectId: string): Promise<ChatStorePayload> {
+  const legacy = loadLegacyChatStore(projectId);
+  const backend = await getResearchChatStore(projectId);
+  let resolved = backend;
+  if (!backend.migrationCompleted) {
+    const source = legacy.sessions.length > 0
+      ? legacy
+      : { sessions: backend.sessions, activeSessionId: backend.activeSessionId };
+    const migration = await migrateResearchChatStore(projectId, {
+      ...source,
+      migrationCompleted: false,
+      diagnosticCode: null,
+    });
+    if (!migration.verified) {
+      throw new Error(migration.diagnosticCode || "research.migration.verification_failed");
+    }
+    resolved = migration.store;
+    removeLegacyChatStore(projectId);
+  } else {
+    removeLegacyChatStore(projectId);
+  }
+  const payload = {
+    sessions: resolved.sessions,
+    activeSessionId: resolved.activeSessionId,
+  };
+  chatStoreCache.set(projectId, payload);
+  emitChatStoreChanged({ projectId, ...payload });
+  return payload;
 }
 
 export function createChatSessionInStore(projectId: string, title?: string): ChatStorePayload {

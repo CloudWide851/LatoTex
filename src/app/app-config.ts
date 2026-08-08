@@ -5,6 +5,7 @@ import {
   GitBranch,
   Globe,
   Languages,
+  LayoutDashboard,
   Library,
   Network,
   Palette,
@@ -14,6 +15,7 @@ import {
   SearchCode,
   Settings2,
   Store,
+  Send,
   Wrench,
 } from "lucide-react";
 import type {
@@ -72,17 +74,30 @@ export const FIXED_AGENT_ROLES = [
 
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
-  key: "nav.latex" | "nav.analysis" | "nav.agents" | "nav.draw" | "nav.library" | "nav.git" | "nav.plugins" | "nav.settings";
+  key:
+    | "nav.overview"
+    | "nav.library"
+    | "nav.latex"
+    | "nav.analysis"
+    | "nav.submission"
+    | "nav.agents"
+    | "nav.draw"
+    | "nav.git"
+    | "nav.plugins"
+    | "nav.settings";
   icon: typeof FileCode2;
+  group: "research" | "tools";
 }> = [
-  { id: "latex", key: "nav.latex", icon: FileCode2 },
-  { id: "analysis", key: "nav.analysis", icon: SearchCode },
-  { id: "agents", key: "nav.agents", icon: UsersRound },
-  { id: "draw", key: "nav.draw", icon: PenTool },
-  { id: "library", key: "nav.library", icon: Library },
-  { id: "git", key: "nav.git", icon: GitBranch },
-  { id: "plugins", key: "nav.plugins", icon: Store },
-  { id: "settings", key: "nav.settings", icon: Settings2 },
+  { id: "overview", key: "nav.overview", icon: LayoutDashboard, group: "research" },
+  { id: "library", key: "nav.library", icon: Library, group: "research" },
+  { id: "latex", key: "nav.latex", icon: FileCode2, group: "research" },
+  { id: "analysis", key: "nav.analysis", icon: SearchCode, group: "research" },
+  { id: "submission", key: "nav.submission", icon: Send, group: "research" },
+  { id: "agents", key: "nav.agents", icon: UsersRound, group: "tools" },
+  { id: "draw", key: "nav.draw", icon: PenTool, group: "tools" },
+  { id: "git", key: "nav.git", icon: GitBranch, group: "tools" },
+  { id: "plugins", key: "nav.plugins", icon: Store, group: "tools" },
+  { id: "settings", key: "nav.settings", icon: Settings2, group: "tools" },
 ];
 
 export const SETTINGS_SECTIONS: Array<{

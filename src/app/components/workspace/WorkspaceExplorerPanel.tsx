@@ -2,6 +2,8 @@ import { RefreshCcw } from "lucide-react";
 import { useState } from "react";
 import { archiveKnowledgeItem } from "../../../shared/api/knowledge";
 import type { FsAction, FsScope, ResourceNode } from "../../../shared/types/app";
+import type { AgentResourceLock } from "../../../shared/types/researchAgent";
+import { researchWriteLockPaths } from "../../../shared/utils/researchResourceLock";
 import { ExplorerTree } from "../ExplorerTree";
 
 type TranslationFn = (key: any) => string;
@@ -15,6 +17,7 @@ export function WorkspaceExplorerPanel(props: {
     string,
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
   >;
+  agentResourceLocks: AgentResourceLock[];
   busy: boolean;
   onSelectFile: (path: string | null) => void;
   onFsAction: (
@@ -39,6 +42,7 @@ export function WorkspaceExplorerPanel(props: {
     selectedFile,
     dirtyByPath,
     explorerGitDecorations,
+    agentResourceLocks,
     busy,
     onSelectFile,
     onFsAction,
@@ -109,6 +113,7 @@ export function WorkspaceExplorerPanel(props: {
             selectedPath={selectedFile}
             dirtyByPath={dirtyByPath}
             gitDecorations={explorerGitDecorations}
+            lockedPaths={researchWriteLockPaths(agentResourceLocks)}
             allowRescan
             busy={busy || Boolean(knowledgeBusyPath)}
             onSelect={onSelectFile}

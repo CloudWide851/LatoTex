@@ -1,8 +1,13 @@
-export function createWorkspaceEditorMonacoOptions(overflowWidgetsDomNode?: HTMLElement | null, fontScale = 1) {
+export function createWorkspaceEditorMonacoOptions(
+  overflowWidgetsDomNode?: HTMLElement | null,
+  fontScale = 1,
+  readOnly = false,
+) {
   const scale = Math.max(0.85, Math.min(1.25, Number(fontScale) || 1));
   const fontSize = Math.round(14 * scale);
   return {
     minimap: { enabled: false },
+    readOnly,
     fontSize,
     fontLigatures: true,
     letterSpacing: 0,

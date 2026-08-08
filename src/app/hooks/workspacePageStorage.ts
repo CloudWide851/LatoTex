@@ -1,9 +1,20 @@
 import type { WorkspacePage } from "../../shared/types/app";
 
-export const DEFAULT_WORKSPACE_PAGE: WorkspacePage = "latex";
+export const DEFAULT_WORKSPACE_PAGE: WorkspacePage = "overview";
 
 const WORKSPACE_PAGE_STORAGE_KEY = "latotex.workspace.page";
-const WORKSPACE_PAGES: WorkspacePage[] = ["latex", "analysis", "draw", "library", "git", "plugins", "settings"];
+const WORKSPACE_PAGES: WorkspacePage[] = [
+  "overview",
+  "library",
+  "latex",
+  "analysis",
+  "submission",
+  "agents",
+  "draw",
+  "git",
+  "plugins",
+  "settings",
+];
 
 export function isWorkspacePage(value: unknown): value is WorkspacePage {
   return typeof value === "string" && WORKSPACE_PAGES.includes(value as WorkspacePage);

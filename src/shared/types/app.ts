@@ -2,7 +2,17 @@ import type { CodeLanguageInfo } from "../utils/codeLanguage";
 import type { PluginCatalogSource } from "../plugins/pluginTypes";
 import type { ChannelPrefs } from "./channels";
 
-export type WorkspacePage = "latex" | "analysis" | "agents" | "draw" | "library" | "git" | "plugins" | "settings";
+export type WorkspacePage =
+  | "overview"
+  | "library"
+  | "latex"
+  | "analysis"
+  | "submission"
+  | "agents"
+  | "draw"
+  | "git"
+  | "plugins"
+  | "settings";
 
 export type EditorTab = {
   id: string;

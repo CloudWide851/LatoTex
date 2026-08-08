@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
-import { readFile, workspaceExportAsset, writeFile } from "../../../shared/api/workspace";
+import { drawExportAsset, readFile, workspaceExportAsset, writeFile } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import { buildDrawExportAction, buildDrawLoadPayload, buildRenamedDrawPath, decodeDrawExportPayload, DRAWIO_CONFIG_MESSAGE, inferExportExtension, interpretDrawHandshakeMessage, isDrawPath, loadPersistedTabs, mergeDrawExportRequest, normalizePath, parseDrawMessage, type PendingDrawExportRequest, savePersistedTabs, shouldClearPendingDrawExport, tabTitleFromPath, toDrawExportDialogDefaults } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
@@ -8,6 +8,7 @@ import { DrawWorkspaceHeader } from "./DrawWorkspaceHeader";
 import { formatDrawStartFailure, useDrawFrameLifecycle } from "./drawFrameLifecycle";
 import { DrawWorkspaceFrameSurface, DrawWorkspaceNoProject, DrawWorkspacePluginRequired } from "./DrawWorkspaceFrameSurface";
 import { EMPTY_DIAGRAM, type WorkspaceFsEventDetail } from "./drawWorkspaceConstants";
+import { useDrawAgentExportOwner } from "./useDrawAgentExportOwner";
 
 type TranslationFn = (key: any) => string;
 export function DrawWorkspace(props: {
@@ -68,6 +69,16 @@ export function DrawWorkspace(props: {
   const postToFrame = useCallback((payload: Record<string, unknown>) => {
     postToFrameRaw(JSON.stringify(payload));
   }, [postToFrameRaw]);
+
+  const agentExportRef = useDrawAgentExportOwner({
+    activePath,
+    ready: framePhase === "ready",
+    pendingExportRequestRef,
+    postToFrame,
+    setBusy,
+    setStatus,
+    waitingLabel: t("draw.waiting"),
+  });
 
   const loadActiveToFrame = useCallback((xmlOverride?: string) => {
     if (framePhase !== "ready" || !activePath) {
@@ -443,12 +454,15 @@ export function DrawWorkspace(props: {
                 ? mergedExportMessage.filename
                 : undefined,
             );
-            const exportResult = await workspaceExportAsset(
-              projectId,
-              defaults.defaultRelativeDir,
-              defaults.defaultFileName,
-              decoded.bytes,
-            );
+            const agentExport = agentExportRef.current;
+            const exportResult = agentExport
+              ? await drawExportAsset(projectId, agentExport.relativePath, decoded.bytes)
+              : await workspaceExportAsset(
+                  projectId,
+                  defaults.defaultRelativeDir,
+                  defaults.defaultFileName,
+                  decoded.bytes,
+                );
             pendingExportRequestRef.current = null;
             if (!exportResult) {
               logDrawRuntime("INFO", "export_cancelled");
@@ -461,8 +475,15 @@ export function DrawWorkspace(props: {
             window.dispatchEvent(new CustomEvent("latotex.workspace.rescan"));
             logDrawRuntime("INFO", `export_saved: ${exportResult.savedPath}`);
             setStatus(`${t("draw.saved")} ${exportResult.savedPath}`);
+            if (agentExport) {
+              agentExportRef.current = null;
+              agentExport.resolve({ savedPath: exportResult.savedPath });
+            }
           } catch (error) {
             pendingExportRequestRef.current = null;
+            const agentExport = agentExportRef.current;
+            agentExportRef.current = null;
+            agentExport?.reject(error instanceof Error ? error : new Error(String(error)));
             logDrawRuntime("ERROR", `export_failed: ${String(error)}`);
             setStatus(String(error));
           } finally {
@@ -473,6 +494,9 @@ export function DrawWorkspace(props: {
       }
       if (shouldClearPendingDrawExport(pendingExportRequestRef.current, message)) {
         pendingExportRequestRef.current = null;
+        const agentExport = agentExportRef.current;
+        agentExportRef.current = null;
+        agentExport?.reject(new Error("research.ui_command.draw_export_failed"));
         setBusy(false);
       }
     };

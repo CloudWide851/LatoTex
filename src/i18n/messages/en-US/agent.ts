@@ -70,7 +70,7 @@ export const enUS_agent = {
   "agent.paper.notFound": "The paper was not found in the library: {ref}",
   "agent.paper.ambiguous": "Multiple papers match \"{ref}\". Please use a full relative path. Candidates: {matches}",
   "agent.proposalPreviewed": "Suggested changes are now previewed in the editor. Accept or reject below.",
-  "agent.nonLatexPrompt": "Target file {path} is not a LaTeX-related file. Type yes to allow once, remember to allow permanently, or no to cancel.",
+  "agent.nonLatexPrompt": "Target file {path} is not LaTeX-related. Choose whether to allow this write once, remember it for this project, or deny it.",
   "agent.nonLatexSkipped": "Agent skips non-LaTeX files by default.",
   "agent.nonLatexRemembered": "Saved permission for this non-LaTeX target file.",
   "agent.nonLatexInvalidChoice": "Invalid choice. Use yes, remember, or no.",

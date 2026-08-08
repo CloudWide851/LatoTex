@@ -4,6 +4,7 @@ import { runAgentWorkflow } from "./agentWorkflow";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import type { AgentPendingAction, AgentProposalMap } from "./useAppContainerState";
 import type { AgentTeamMode } from "../../shared/types/app";
+import { readFile } from "../../shared/api/workspace";
 
 export function useAgentWorkflowHandlers(params: {
   activeProjectId: string | null;
@@ -182,6 +183,62 @@ export function useAgentWorkflowHandlers(params: {
     clearPendingDecision,
   ]);
 
+  const handleRunAgentForPath = useCallback(async (
+    targetPath: string,
+    instruction: string,
+  ): Promise<AgentFileProposal | null> => {
+    if (!activeProjectId || !targetPath.trim() || !instruction.trim()) {
+      throw new Error("research.ui_command.agent_input_invalid");
+    }
+    const fileContent = targetPath === selectedFile
+      ? (await resolveSelectedFileContent()) ?? editorContent
+      : (await readFile(activeProjectId, targetPath)).content ?? "";
+    let generatedProposal: AgentFileProposal | null = null;
+    await runAgentWorkflow({
+      activeProjectId,
+      agentPrompt: instruction.trim(),
+      editorContent: fileContent,
+      selectedFile: targetPath,
+      t,
+      setAgentMessages,
+      setAgentProposal: (value) => {
+        generatedProposal = value;
+        setScopedAgentProposal(value);
+      },
+      setAgentRunId,
+      setAgentPrompt,
+      setAgentCollapsed,
+      setAgentPhase,
+      setAgentStatusKey,
+      setToast,
+      setEditorContent,
+      setSelectedFile,
+      runCompilePass: ({ projectId, mainPath, mainContent, options }) =>
+        runCompilePass({ projectId, mainPath, mainContent, options }),
+      taskModelOverride,
+      teamMode: "auto",
+    });
+    return generatedProposal;
+  }, [
+    activeProjectId,
+    editorContent,
+    resolveSelectedFileContent,
+    runCompilePass,
+    selectedFile,
+    setAgentCollapsed,
+    setAgentMessages,
+    setAgentPhase,
+    setAgentPrompt,
+    setAgentRunId,
+    setAgentStatusKey,
+    setEditorContent,
+    setScopedAgentProposal,
+    setSelectedFile,
+    setToast,
+    t,
+    taskModelOverride,
+  ]);
+
   const handleRejectAgentProposal = useCallback(() => {
     clearPendingDecision(false);
     if (currentProposal) {
@@ -248,13 +305,65 @@ export function useAgentWorkflowHandlers(params: {
     t,
   ]);
 
+  const handleAcceptAgentProposalByPath = useCallback(async (
+    targetPath: string,
+    proposalId: string,
+  ) => {
+    if (!activeProjectId) {
+      throw new Error("research.ui_command.project_required");
+    }
+    const proposal = agentProposalsByPath[targetPath];
+    if (!proposal || (proposalId !== "latest" && proposal.id !== proposalId)) {
+      throw new Error("research.ui_command.proposal_not_found");
+    }
+    await applyAgentProposal({
+      activeProjectId,
+      selectedFile,
+      proposal: { ...proposal, commitIntent: "skip" },
+      withAnalysis: false,
+      setBusy,
+      setEditorContent,
+      setSelectedFile,
+      markPathSaved,
+      refreshGitWorkspace,
+      setTree,
+      setAgentMessages,
+      setAgentProposal: setScopedAgentProposal,
+      setAgentRunId,
+      setPage,
+      setToast,
+      runCompileAfterApply: runCompilePass,
+      t,
+    });
+    return { proposalId: proposal.id, path: proposal.targetPath };
+  }, [
+    activeProjectId,
+    agentProposalsByPath,
+    markPathSaved,
+    refreshGitWorkspace,
+    runCompilePass,
+    selectedFile,
+    setAgentMessages,
+    setAgentRunId,
+    setBusy,
+    setEditorContent,
+    setPage,
+    setScopedAgentProposal,
+    setSelectedFile,
+    setToast,
+    setTree,
+    t,
+  ]);
+
   const handleResolveAgentPendingAction = useCallback((accept: boolean) => {
     clearPendingDecision(accept);
   }, [clearPendingDecision]);
 
   return {
     handleRunAgent,
+    handleRunAgentForPath,
     handleAcceptAgentProposal,
+    handleAcceptAgentProposalByPath,
     handleRejectAgentProposal,
     handleResolveAgentPendingAction,
   };
