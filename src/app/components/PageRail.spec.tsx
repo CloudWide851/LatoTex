@@ -27,11 +27,13 @@ describe("PageRail material states", () => {
       root.render(
         <PageRail
           items={[
-            { id: "latex", label: "Editor", icon: FileText },
-            { id: "settings", label: "Settings", icon: FileText },
+            { id: "latex", label: "Editor", icon: FileText, group: "research" },
+            { id: "settings", label: "Settings", icon: FileText, group: "tools" },
           ]}
           activePage="latex"
           onChange={vi.fn()}
+          researchGroupLabel="Research workflow"
+          toolsGroupLabel="Workspace tools"
         />,
       );
     });
@@ -39,5 +41,7 @@ describe("PageRail material states", () => {
     expect(container.querySelector('button[aria-label="Editor"]')?.className).toContain("app-page-rail-item--active");
     expect(container.querySelector('button[aria-label="Editor"]')?.getAttribute("aria-current")).toBe("page");
     expect(container.querySelector('button[aria-label="Settings"]')?.className).toContain("app-page-rail-item--idle");
+    expect(container.querySelector('[role="group"][aria-label="Research workflow"]')).not.toBeNull();
+    expect(container.querySelector('[role="group"][aria-label="Workspace tools"]')).not.toBeNull();
   });
 });

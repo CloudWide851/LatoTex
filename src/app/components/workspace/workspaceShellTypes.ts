@@ -12,6 +12,7 @@ import type {
   SwarmEvent,
   WorkspacePage,
 } from "../../../shared/types/app";
+import type { LucideIcon } from "lucide-react";
 import type { ShareEditAnnotation } from "../../hooks/shareEditAnnotations";
 import type { LogTab } from "../../app-config";
 import type { AgentPhase } from "../AgentChatOverlay";
@@ -21,13 +22,19 @@ import type { AgentStatusKey } from "./workspaceShellUtils";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import type { CompileActionResult } from "../../hooks/compileActionTypes";
 import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
+import type { AgentResourceLock } from "../../../shared/types/researchAgent";
 
 export type TranslationFn = (key: any) => string;
 export type ShareMode = "local" | "remote";
 
 export type AppWorkspaceShellProps = {
   page: WorkspacePage;
-  pageRailItems: Array<{ id: WorkspacePage; icon: any; label: string }>;
+  pageRailItems: Array<{
+    id: WorkspacePage;
+    icon: LucideIcon;
+    label: string;
+    group: "research" | "tools";
+  }>;
   activeProjectId: string | null;
   busy: boolean;
   suspended?: boolean;
@@ -73,6 +80,7 @@ export type AppWorkspaceShellProps = {
     string,
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
   >;
+  agentResourceLocks: AgentResourceLock[];
   shellMin: readonly [number, number];
   settings: AppSettings | null;
   settingsPanel: React.ReactNode;

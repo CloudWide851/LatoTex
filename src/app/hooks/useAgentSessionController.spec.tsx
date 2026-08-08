@@ -15,16 +15,18 @@ vi.mock("../../shared/api/agent", () => ({
   executeWorkflowCancel: mocks.executeWorkflowCancel,
 }));
 
-function AgentSessionProbe() {
+function AgentSessionProbe(props: { selectedFile?: string } = {}) {
   const [agentPrompt, setAgentPrompt] = useState("fix this");
   const [agentRunId, setAgentRunId] = useState<string | null>("run-recovered");
   const [agentPhase, setAgentPhase] = useState<"idle" | "running" | "done" | "error">("running");
   const [statusKey, setAgentStatusKey] = useState<any>("agent.statusRunning");
   const [toast, setToast] = useState<{ type: "info" | "error"; message: string } | null>(null);
-  const [messages, setMessages] = useState<AgentChatMessage[]>([]);
+  const [messages, setMessages] = useState<AgentChatMessage[]>([
+    { id: "message-1", role: "agent", text: "Persistent project context" },
+  ]);
   const controller = useAgentSessionController({
     activeProjectId: "project-1",
-    selectedFile: "main.tex",
+    selectedFile: props.selectedFile ?? "main.tex",
     agentPrompt,
     agentPhase,
     agentRunId,
@@ -50,6 +52,7 @@ function AgentSessionProbe() {
       <span data-testid="run-id">{agentRunId ?? ""}</span>
       <span data-testid="status">{statusKey}</span>
       <span data-testid="toast">{toast?.message ?? ""}</span>
+      <span data-testid="messages">{messages.map((message) => message.text).join("|")}</span>
     </div>
   );
 }
@@ -87,6 +90,31 @@ describe("useAgentSessionController", () => {
     expect(container.querySelector("[data-testid='phase']")?.textContent).toBe("done");
     expect(container.querySelector("[data-testid='run-id']")?.textContent).toBe("");
     expect(container.querySelector("[data-testid='status']")?.textContent).toBe("agent.statusDone");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("preserves the project agent conversation when the selected file changes", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<AgentSessionProbe selectedFile="main.tex" />);
+    });
+    expect(container.querySelector("[data-testid='messages']")?.textContent).toBe(
+      "Persistent project context",
+    );
+
+    await act(async () => {
+      root.render(<AgentSessionProbe selectedFile="appendix.tex" />);
+    });
+    expect(container.querySelector("[data-testid='messages']")?.textContent).toBe(
+      "Persistent project context",
+    );
 
     await act(async () => {
       root.unmount();

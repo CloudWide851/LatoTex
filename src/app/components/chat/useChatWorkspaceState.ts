@@ -3,6 +3,7 @@ import { readFile } from "../../../shared/api/workspace";
 import type { AgentChatMessage } from "../../hooks/agentTypes";
 import {
   loadChatStore,
+  hydrateChatStore,
   newChatSession,
   saveChatStore,
   type ChatStoreChangeDetail,
@@ -44,6 +45,7 @@ export function useChatWorkspaceState(props: {
   const [running, setRunning] = useState(false);
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
   const [lastError, setLastError] = useState("");
+  const [hydratedProjectId, setHydratedProjectId] = useState<string | null>(null);
   const [workspaceAgentSync, setWorkspaceAgentSync] = useState<{
     sessionId: string;
     messageId: string;
@@ -59,19 +61,39 @@ export function useChatWorkspaceState(props: {
     if (!projectId) {
       setSessions([]);
       setActiveSessionId(null);
+      setHydratedProjectId(null);
       return;
     }
+    let cancelled = false;
     const loaded = loadChatStore(projectId);
     setSessions(loaded.sessions);
     setActiveSessionId(loaded.activeSessionId);
-  }, [projectId]);
+    setHydratedProjectId(null);
+    void hydrateChatStore(projectId)
+      .then((hydrated) => {
+        if (cancelled) {
+          return;
+        }
+        setSessions(hydrated.sessions);
+        setActiveSessionId(hydrated.activeSessionId);
+        setHydratedProjectId(projectId);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLastError(t("chat.error.storageMigrationFailed"));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, t]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!projectId || hydratedProjectId !== projectId) {
       return;
     }
     saveChatStore(projectId, sessions, activeSessionId);
-  }, [activeSessionId, projectId, sessions]);
+  }, [activeSessionId, hydratedProjectId, projectId, sessions]);
 
   useEffect(() => {
     if (!projectId || typeof window === "undefined") {

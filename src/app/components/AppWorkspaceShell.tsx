@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageRail } from "./PageRail";
 import { resolveCodeLanguage } from "../../shared/utils/codeLanguage";
 import {
@@ -8,17 +8,13 @@ import {
 } from "./editor/compileAssistCjk";
 import { buildCompileAssistHint, prioritizeCompileDiagnostics } from "./editor/compileAssistHint";
 import { WorkspaceEditorPreviewPanel } from "./editor/WorkspaceEditorPreviewPanel";
-import { configureLatexCompletionRuntime } from "./editor/latexCompletion";
 import { NoProjectPanel } from "./workspace/NoProjectPanel";
 import { WorkspaceLatexEditorSurface } from "./workspace/WorkspaceLatexEditorSurface";
 import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import {
-  LazyDrawWorkspace,
   LazyDocxWorkspaceSurface,
-  LazyPluginMarketplaceSurface,
   LazySubmissionCiWorkspaceSurface,
   useDrawWorkspacePreload,
-  WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
@@ -39,6 +35,8 @@ import { isDocxPath } from "../../shared/utils/fileKind";
 import { textBackedPluginPreviewMode } from "../../shared/plugins/pluginFileInterfaces";
 import type { AgentRuntimeId } from "../../shared/types/agentControl";
 import type { AgentTerminalLaunchRequest } from "./terminal/terminalTypes";
+import { renderWorkspaceSpecialPage } from "./workspace/renderWorkspaceSpecialPage";
+import { useWorkspaceLatexCompletionRuntime } from "./workspace/useWorkspaceLatexCompletionRuntime";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -71,6 +69,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     compileInstallProgress,
     agentCollapsed,
     explorerGitDecorations,
+    agentResourceLocks,
     shellMin,
     settings,
     settingsPanel,
@@ -142,15 +141,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
   }, [previewDefaultZoom]);
 
-  useEffect(() => {
-    configureLatexCompletionRuntime(() => ({
-      projectId: activeProjectId,
-      selectedFile,
-      completionModelId,
-      fileList,
-      selectedFileContent: editorContent,
-    }));
-  }, [activeProjectId, completionModelId, editorContent, fileList, selectedFile]);
+  useWorkspaceLatexCompletionRuntime(activeProjectId, selectedFile, completionModelId, fileList, editorContent);
 
   useEffect(() => {
     setLatexMode((prev) => {
@@ -415,43 +406,16 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   );
 
   const renderMainPanel = () => {
-    if (page === "analysis") {
-      return <section className="h-full min-h-0">{analysisPanel}</section>;
-    }
-    if (page === "agents") {
-      return <section className="h-full min-h-0">{agentPanel}</section>;
-    }
-    if (page === "draw") {
-      return (
-        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-          <LazyDrawWorkspace
-            projectId={activeProjectId}
-            selectedPath={selectedFile}
-            onSelectPath={onSelectFile}
-            onRunFsAction={onRunFsAction}
-            t={t}
-          />
-        </Suspense>
-      );
-    }
-    if (page === "library") {
-      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
-    }
-    if (page === "git") {
-      return activeProjectId ? gitPanel : <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
-    }
-    if (page === "settings") {
-      return settingsPanel;
-    }
-    if (page === "plugins") {
-      return (
-        <LazyPluginMarketplaceSurface
-          settings={settings}
-          onPageChange={onPageChange}
-          onOpenAgentTerminal={openAgentRuntimeTerminal}
-          t={t}
-        />
-      );
+    const specialPage = renderWorkspaceSpecialPage({
+      shell: props,
+      selectedIsDraw,
+      selectedIsExcel,
+      compileAssistDiagnostics,
+      onOpenAgentRuntimeTerminal: openAgentRuntimeTerminal,
+      onOpenTexMode: openTexMode,
+    });
+    if (specialPage !== undefined) {
+      return specialPage;
     }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
@@ -522,7 +486,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     <main className="app-material-canvas flex-1 min-h-0 overflow-hidden p-1">
       <div className="flex h-full gap-0">
         <div className="w-14 shrink-0">
-          <PageRail items={pageRailItems} activePage={page} onChange={onPageChange} />
+          <PageRail
+            items={pageRailItems}
+            activePage={page}
+            onChange={onPageChange}
+            researchGroupLabel={t("nav.group.research")}
+            toolsGroupLabel={t("nav.group.tools")}
+          />
         </div>
         <div className="app-material-shell min-w-0 flex-1 overflow-hidden rounded-lg border p-1">
           <WorkspacePageLayout
@@ -539,6 +509,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             selectedLibraryPath={selectedLibraryPath}
             dirtyByPath={dirtyByPath}
             explorerGitDecorations={explorerGitDecorations}
+            agentResourceLocks={agentResourceLocks}
             onSelectLibraryPath={onSelectLibraryPath}
             onPageChange={onPageChange}
             onFsAction={onFsAction}

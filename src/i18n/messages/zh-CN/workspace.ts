@@ -27,6 +27,7 @@ export const zhCN_workspace = {
   "workspace.circuitBreakerRestart": "清理缓存并重启",
   "workspace.save": "保存",
   "workspace.compile": "编译",
+  "workspace.openDrawPage": "在绘图工作区中打开",
   "workspace.mode.tex": "TeX",
   "workspace.mode.docx": "DOCX",
   "workspace.mode.submission": "投稿 CI",

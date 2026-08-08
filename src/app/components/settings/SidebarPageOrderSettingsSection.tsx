@@ -55,33 +55,42 @@ export function SidebarPageOrderSettingsSection(props: {
             return null;
           }
           const Icon = item.icon;
+          const previous = index > 0 ? itemMap.get(order[index - 1]) : null;
+          const next = index < order.length - 1 ? itemMap.get(order[index + 1]) : null;
+          const startsGroup = index === 0 || previous?.group !== item.group;
           return (
-            <div
-              key={page}
-              className="app-material-inset flex min-h-10 items-center gap-2 rounded-md border px-2 text-sm text-slate-700"
-            >
-              <Icon className="h-4 w-4 shrink-0 text-slate-500" />
-              <span className="min-w-0 flex-1 truncate">{t(item.key)}</span>
-              <button
-                type="button"
-                className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border disabled:opacity-40"
-                disabled={index === 0}
-                onClick={() => updateOrder(moveSidebarPageOrderItem(order, page, -1))}
-                title={t("settings.sidebarOrderMoveUp")}
-                aria-label={t("settings.sidebarOrderMoveUp")}
+            <div key={page} className="grid gap-1">
+              {startsGroup ? (
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {t(item.group === "research" ? "nav.group.research" : "nav.group.tools")}
+                </p>
+              ) : null}
+              <div
+                className="app-material-inset flex min-h-10 items-center gap-2 rounded-md border px-2 text-sm text-slate-700"
               >
-                <ArrowUp className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border disabled:opacity-40"
-                disabled={index === order.length - 1}
-                onClick={() => updateOrder(moveSidebarPageOrderItem(order, page, 1))}
-                title={t("settings.sidebarOrderMoveDown")}
-                aria-label={t("settings.sidebarOrderMoveDown")}
-              >
-                <ArrowDown className="h-3.5 w-3.5" />
-              </button>
+                <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 truncate">{t(item.key)}</span>
+                <button
+                  type="button"
+                  className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border disabled:opacity-40"
+                  disabled={index === 0 || previous?.group !== item.group}
+                  onClick={() => updateOrder(moveSidebarPageOrderItem(order, page, -1))}
+                  title={t("settings.sidebarOrderMoveUp")}
+                  aria-label={t("settings.sidebarOrderMoveUp")}
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border disabled:opacity-40"
+                  disabled={index === order.length - 1 || next?.group !== item.group}
+                  onClick={() => updateOrder(moveSidebarPageOrderItem(order, page, 1))}
+                  title={t("settings.sidebarOrderMoveDown")}
+                  aria-label={t("settings.sidebarOrderMoveDown")}
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           );
         })}

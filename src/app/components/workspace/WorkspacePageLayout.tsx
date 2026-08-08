@@ -26,6 +26,7 @@ type WorkspacePageLayoutProps = Pick<
   | "selectedLibraryPath"
   | "dirtyByPath"
   | "explorerGitDecorations"
+  | "agentResourceLocks"
   | "onSelectLibraryPath"
   | "onPageChange"
   | "onFsAction"
@@ -73,6 +74,7 @@ export function WorkspacePageLayout({
   selectedLibraryPath,
   dirtyByPath,
   explorerGitDecorations,
+  agentResourceLocks,
   onSelectLibraryPath,
   onPageChange,
   onFsAction,
@@ -216,6 +218,7 @@ export function WorkspacePageLayout({
             selectedFile={selectedFile}
             dirtyByPath={dirtyByPath}
             explorerGitDecorations={explorerGitDecorations}
+            agentResourceLocks={agentResourceLocks}
             busy={busy}
             onSelectFile={onSelectWorkspaceFile}
             onFsAction={onFsAction}
@@ -261,6 +264,7 @@ export function WorkspacePageLayout({
             selectedFile={selectedFile}
             dirtyByPath={dirtyByPath}
             explorerGitDecorations={explorerGitDecorations}
+            agentResourceLocks={agentResourceLocks}
             busy={busy}
             onSelectFile={onSelectWorkspaceFile}
             onFsAction={onFsAction}

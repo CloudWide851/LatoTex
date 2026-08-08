@@ -8,12 +8,14 @@ import {
 describe("pageRailOrder", () => {
   it("filters invalid values, removes duplicates, and appends missing pages", () => {
     expect(normalizeSidebarPageOrder(["git", "unknown", "git", "latex"])).toEqual([
-      "git",
       "latex",
+      "overview",
+      "library",
       "analysis",
+      "submission",
+      "git",
       "agents",
       "draw",
-      "library",
       "plugins",
       "settings",
     ]);
@@ -25,14 +27,31 @@ describe("pageRailOrder", () => {
 
   it("moves pages within the normalized order", () => {
     expect(moveSidebarPageOrderItem(DEFAULT_PAGE_ORDER, "plugins", -1)).toEqual([
+      "overview",
+      "library",
       "latex",
       "analysis",
+      "submission",
       "agents",
       "draw",
-      "library",
       "plugins",
       "git",
       "settings",
+    ]);
+  });
+
+  it("keeps research destinations ahead of tools while preserving order inside each group", () => {
+    expect(normalizeSidebarPageOrder(["settings", "analysis", "git", "overview"])).toEqual([
+      "analysis",
+      "overview",
+      "library",
+      "latex",
+      "submission",
+      "settings",
+      "git",
+      "agents",
+      "draw",
+      "plugins",
     ]);
   });
 });

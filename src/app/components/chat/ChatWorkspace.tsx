@@ -1,33 +1,32 @@
-import { Send, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startChatWorkflow } from "../../../shared/api/agent";
 import {
   channelsTelegramPoll,
   channelsTelegramSend,
   getEvents,
-  readFile,
   executeWorkflowCancel,
-  executeWorkflowStart,
 } from "../../../shared/api/desktop";
 import type { ChannelPrefs, SwarmEvent } from "../../../shared/types/app";
 import type { AgentPhase } from "../AgentChatOverlay";
-import type { AgentFileProposal } from "../../hooks/agentTypes";
+import type { AgentChatMessage, AgentFileProposal } from "../../hooks/agentTypes";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 import {
-  loadChatStore,
   newChatSession,
-  saveChatStore,
-  type ChatStoreChangeDetail,
   type ChatMessage,
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
 import { ChatMessageList } from "./ChatMessageList";
+import { ChatWorkspaceComposer } from "./ChatWorkspaceComposer";
+import { updateSession } from "./chatWorkspaceUtils";
+import { useChatWorkspaceState } from "./useChatWorkspaceState";
 import { useChatRunEventHydration } from "./useChatRunEventHydration";
 
 type TranslationFn = (key: any) => string;
 
 
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
+const RESEARCH_MODE_INSTRUCTION = "Research mode is explicitly enabled. Separate claims from evidence, cite available sources, state limitations, and label unsupported claims as unconfirmed.";
 
 type ChatAutoFixRequest = {
   projectId: string | null;
@@ -37,42 +36,13 @@ type ChatAutoFixRequest = {
   requestId?: string;
 };
 
-function chatStoreMatchesCurrent(
-  current: ChatSession[],
-  currentActiveSessionId: string | null,
-  nextSessions: ChatSession[],
-  nextActiveSessionId: string | null,
-): boolean {
-  if (currentActiveSessionId !== nextActiveSessionId || current.length !== nextSessions.length) {
-    return false;
-  }
-  return current.every((session, index) => {
-    const next = nextSessions[index];
-    return Boolean(next)
-      && session.id === next.id
-      && session.updatedAt === next.updatedAt
-      && session.messages.length === next.messages.length;
-  });
-}
-
 function renderRunFailureMessage(t: TranslationFn, error: unknown): string {
-  const detail = String(error ?? "").trim();
-  if (!detail) {
-    return t("chat.runFailed");
-  }
-  return t("chat.runFailedWithReason").replace("{reason}", detail);
+  void error;
+  return t("chat.runFailed");
 }
 function titleFromPrompt(prompt: string, fallback: string) {
   const firstLine = prompt.replace(/\s+/g, " ").trim().slice(0, 42);
   return firstLine || fallback;
-}
-
-function updateSession(
-  sessions: ChatSession[],
-  sessionId: string,
-  updater: (session: ChatSession) => ChatSession,
-): ChatSession[] {
-  return sessions.map((item) => (item.id === sessionId ? updater(item) : item));
 }
 
 function ensureTelegramSession(
@@ -100,9 +70,10 @@ export function ChatWorkspace(props: {
   channelPrefs?: ChannelPrefs | null;
   suspended?: boolean;
   chatAgentModelId?: string | null;
+  selectedFile?: string | null;
   agentPhase?: AgentPhase;
   agentRunId?: string | null;
-  agentMessages?: unknown[];
+  agentMessages?: AgentChatMessage[];
   agentProposal?: AgentFileProposal | null;
   agentPendingAction?: AgentPendingAction;
   events?: unknown[];
@@ -114,16 +85,35 @@ export function ChatWorkspace(props: {
   t: TranslationFn;
 }) {
   const { projectId, modelOverride, channelPrefs, t } = props;
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [running, setRunning] = useState(false);
-  const [pendingRunId, setPendingRunId] = useState<string | null>(null);
+  const {
+    activeSession,
+    activeSessionId,
+    appendMessage,
+    draft,
+    ensureSession,
+    lastError,
+    loadProjectMemoryText,
+    pendingRunId,
+    running,
+    sessionsRef,
+    setActiveSessionId,
+    setDraft,
+    setLastError,
+    setPendingRunId,
+    setRunning,
+    setSessions,
+    updateMessageRunId,
+    updateMessageText,
+  } = useChatWorkspaceState({
+    projectId,
+    agentMessages: props.agentMessages ?? [],
+    agentRunId: props.agentRunId ?? null,
+    t,
+  });
   const [runningAssistantMessageId, setRunningAssistantMessageId] = useState<string | null>(null);
-  const [lastError, setLastError] = useState("");
+  const [chatMode, setChatMode] = useState<"general" | "research">("research");
+  const [contextScope, setContextScope] = useState<"conversation" | "current-file">("conversation");
   const listRef = useRef<HTMLDivElement | null>(null);
-  const sessionsRef = useRef<ChatSession[]>([]);
-  const activeSessionIdRef = useRef<string | null>(null);
   const telegramOffsetRef = useRef(0);
   const telegramQueueRef = useRef<Array<{ chatId: string; username: string; text: string; messageId: number }>>([]);
   const telegramProcessingRef = useRef(false);
@@ -131,70 +121,12 @@ export function ChatWorkspace(props: {
   const lastHandledAutoFixKeyRef = useRef<string>("");
 
   useEffect(() => {
-    if (!projectId) {
-      setSessions([]);
-      setActiveSessionId(null);
-      return;
-    }
-    const loaded = loadChatStore(projectId);
-    setSessions(loaded.sessions);
-    setActiveSessionId(loaded.activeSessionId);
-  }, [projectId]);
-
-  useEffect(() => {
-    if (!projectId) {
-      return;
-    }
-    saveChatStore(projectId, sessions, activeSessionId);
-  }, [activeSessionId, projectId, sessions]);
-
-  useEffect(() => {
-    if (!projectId || typeof window === "undefined") {
-      return;
-    }
-    const handleStoreChanged = (event: Event) => {
-      const custom = event as CustomEvent<ChatStoreChangeDetail>;
-      if (!custom.detail || custom.detail.projectId !== projectId) {
-        return;
-      }
-      if (
-        chatStoreMatchesCurrent(
-          sessionsRef.current,
-          activeSessionIdRef.current,
-          custom.detail.sessions,
-          custom.detail.activeSessionId,
-        )
-      ) {
-        return;
-      }
-      setSessions(custom.detail.sessions);
-      setActiveSessionId(custom.detail.activeSessionId);
-    };
-    window.addEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
-    return () => {
-      window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
-    };
-  }, [projectId]);
-
-  useEffect(() => {
     if (!listRef.current) {
       return;
     }
     listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [activeSessionId, sessions]);
+  }, [activeSession?.updatedAt, activeSessionId]);
 
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
-
-  useEffect(() => {
-    activeSessionIdRef.current = activeSessionId;
-  }, [activeSessionId]);
-
-  const activeSession = useMemo(
-    () => sessions.find((item) => item.id === activeSessionId) ?? null,
-    [activeSessionId, sessions],
-  );
   const activeMessages = activeSession?.messages ?? [];
   const incomingEvents = useMemo(
     () => (Array.isArray(props.events) ? (props.events as SwarmEvent[]) : []),
@@ -206,64 +138,11 @@ export function ChatWorkspace(props: {
     suspended: Boolean(props.suspended),
   });
 
-  const ensureSession = useCallback(() => {
-    if (activeSessionId && sessions.some((item) => item.id === activeSessionId)) {
-      return activeSessionId;
+  useEffect(() => {
+    if (!props.selectedFile && contextScope === "current-file") {
+      setContextScope("conversation");
     }
-    const session = newChatSession(t("chat.sessionNew"));
-    setSessions((prev) => [session, ...prev].slice(0, 80));
-    setActiveSessionId(session.id);
-    return session.id;
-  }, [activeSessionId, sessions, t]);
-
-  const appendMessage = (sessionId: string, message: ChatMessage) => {
-    setSessions((prev) =>
-      updateSession(prev, sessionId, (session) => ({
-        ...session,
-        updatedAt: new Date().toISOString(),
-        messages: [...session.messages, message].slice(-600),
-      })),
-    );
-  };
-
-  const updateMessageText = (sessionId: string, messageId: string, text: string) => {
-    setSessions((prev) =>
-      updateSession(prev, sessionId, (session) => ({
-        ...session,
-        updatedAt: new Date().toISOString(),
-        messages: session.messages.map((item) => (item.id === messageId ? { ...item, text } : item)),
-      })),
-    );
-  };
-
-  const updateMessageRunId = (sessionId: string, messageId: string, runId: string | null) => {
-    setSessions((prev) =>
-      updateSession(prev, sessionId, (session) => ({
-        ...session,
-        updatedAt: new Date().toISOString(),
-        messages: session.messages.map((item) => (item.id === messageId ? { ...item, runId } : item)),
-      })),
-    );
-  };
-
-  const loadProjectMemoryText = useCallback(async () => {
-    if (!projectId) {
-      return "";
-    }
-    const candidates = [".latotex/MEMORY.md", "MEMORY.md", "memory.md"];
-    for (const path of candidates) {
-      try {
-        const loaded = await readFile(projectId, path);
-        const text = String(loaded.content || "").trim();
-        if (text) {
-          return text;
-        }
-      } catch {
-        // Try next candidate.
-      }
-    }
-    return "";
-  }, [projectId]);
+  }, [contextScope, props.selectedFile]);
 
   const runPrompt = useCallback(async (
     promptRaw: string,
@@ -273,6 +152,7 @@ export function ChatWorkspace(props: {
       telegramMessageId?: number;
       telegramUser?: string;
       forceNewSession?: boolean;
+      teamMode?: "auto" | "force";
     },
   ) => {
     const prompt = promptRaw.trim();
@@ -354,13 +234,14 @@ export function ChatWorkspace(props: {
     setRunning(true);
     setRunningAssistantMessageId(assistantMessageId);
     try {
-      const accepted = await executeWorkflowStart({
+      const accepted = await startChatWorkflow({
         projectId,
-        workflowId: "chat.general",
-        callsite: "chat.workspace",
-        prompt,
-        contextRefs: [],
+        prompt: chatMode === "research" ? `${RESEARCH_MODE_INSTRUCTION}\n\n${prompt}` : prompt,
+        contextPaths: contextScope === "current-file" && props.selectedFile
+          ? [props.selectedFile]
+          : [],
         modelOverride: modelOverride ?? undefined,
+        teamMode: options?.teamMode ?? "auto",
       });
       setPendingRunId(accepted.runId);
       updateMessageRunId(sessionId, assistantMessageId, accepted.runId);
@@ -431,7 +312,7 @@ export function ChatWorkspace(props: {
       setPendingRunId(null);
       setRunningAssistantMessageId(null);
     }
-  }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, t, updateMessageText]);
+  }, [appendMessage, chatMode, contextScope, ensureSession, loadProjectMemoryText, modelOverride, projectId, props.selectedFile, running, t, updateMessageText]);
 
   const sendMessage = async () => {
     await runPrompt(draft);
@@ -628,10 +509,15 @@ export function ChatWorkspace(props: {
   }
 
   return (
-    <section className="app-material-panel grid h-full min-h-0 grid-rows-[minmax(0,1fr)_128px] overflow-hidden rounded-lg border">
+    <section className="app-material-panel grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-lg border">
       <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
+          <div className="grid h-full place-items-center px-6 text-center">
+            <div className="max-w-md">
+              <p className="font-serif text-base font-semibold text-[color:var(--app-fg)]">{t("chat.emptyTitle")}</p>
+              <p className="mt-2 text-xs leading-5 text-[color:var(--app-muted)]">{t("chat.emptyHint")}</p>
+            </div>
+          </div>
         ) : (
           <ChatMessageList
             messages={activeSession.messages}
@@ -645,36 +531,27 @@ export function ChatWorkspace(props: {
         )}
       </div>
 
-      <div className="flex h-full min-h-0 flex-col border-t border-slate-200 px-2 pb-2 pt-1.5">
-        <div className="relative min-h-0 flex-1">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={t("chat.inputPlaceholder")}
-            className="app-material-inset h-full w-full resize-none rounded-md border px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
-          />
-          <button
-            className={`absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
-              running
-                ? "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                : "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-            }`}
-            onClick={() => {
-              if (running) {
-                void stopRun();
-                return;
-              }
-              void sendMessage();
-            }}
-            disabled={!running && !draft.trim()}
-            title={running ? t("agent.run.cancel") : t("chat.send")}
-            aria-label={running ? t("agent.run.cancel") : t("chat.send")}
-          >
-            {running ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-        {lastError ? <div className="mt-1 truncate text-[11px] text-rose-600">{lastError}</div> : null}
-      </div>
+      <ChatWorkspaceComposer
+        draft={draft}
+        running={running}
+        lastError={lastError}
+        agentPhase={props.agentPhase ?? "idle"}
+        agentProposal={props.agentProposal ?? null}
+        agentPendingAction={props.agentPendingAction ?? null}
+        mode={chatMode}
+        contextScope={contextScope}
+        selectedFile={props.selectedFile}
+        onDraftChange={setDraft}
+        onModeChange={setChatMode}
+        onContextScopeChange={setContextScope}
+        onSend={() => void sendMessage()}
+        onSendTeams={() => void runPrompt(draft, { teamMode: "force" })}
+        onStop={() => void stopRun()}
+        onAcceptWorkspaceAgentProposal={props.onAcceptWorkspaceAgentProposal}
+        onRejectWorkspaceAgentProposal={props.onRejectWorkspaceAgentProposal}
+        onResolveWorkspaceAgentPendingAction={props.onResolveWorkspaceAgentPendingAction}
+        t={t}
+      />
     </section>
   );
 }

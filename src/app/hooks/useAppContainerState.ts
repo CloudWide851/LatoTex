@@ -199,7 +199,12 @@ export function useAppContainerState(t: (...args: any[]) => string) {
       return order
         .map((id) => itemMap.get(id))
         .filter((item): item is typeof PAGE_ITEMS[number] => Boolean(item))
-        .map((item) => ({ id: item.id, icon: item.icon, label: t(item.key) }));
+          .map((item) => ({
+            id: item.id,
+            icon: item.icon,
+            label: t(item.key),
+            group: item.group,
+          }));
     },
     [settings?.uiPrefs?.sidebarPageOrder, t],
   );

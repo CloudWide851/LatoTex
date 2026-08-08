@@ -27,6 +27,7 @@ export const enUS_workspace = {
   "workspace.circuitBreakerRestart": "Clear Cache and Restart",
   "workspace.save": "Save",
   "workspace.compile": "Compile",
+  "workspace.openDrawPage": "Open in Draw workspace",
   "workspace.mode.tex": "TeX",
   "workspace.mode.docx": "DOCX",
   "workspace.mode.submission": "Submission CI",

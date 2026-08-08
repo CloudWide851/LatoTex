@@ -22,7 +22,7 @@ export function useLibraryPdfViewController(params: {
   pdfCacheState: string;
   sourcePdfRelativePath: string | null;
   ensurePdfPreviewLoaded: (options?: { bustCache?: boolean; allowHttpOnce?: boolean }) => Promise<unknown>;
-  confirmHttpDownload: () => boolean;
+  confirmHttpDownload: () => Promise<boolean>;
   applyViewMode: (mode: ViewMode) => void;
   runTranslation: () => void;
 }) {
@@ -184,9 +184,9 @@ export function useLibraryPdfViewController(params: {
     translationBusy,
   ]);
 
-  const retryPdfOpen = useCallback(() => {
+  const retryPdfOpen = useCallback(async () => {
     const needsHttpApproval = pdfPreviewError?.startsWith("remote.http_approval_required") ?? false;
-    if (needsHttpApproval && !confirmHttpDownload()) {
+    if (needsHttpApproval && !await confirmHttpDownload()) {
       return;
     }
     setPendingPdfOpen(true);

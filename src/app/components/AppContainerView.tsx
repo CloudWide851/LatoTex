@@ -9,12 +9,9 @@ import { useAppAppearance } from "../hooks/useAppAppearance";
 import { runtimeClearVolatileCacheAndRestart } from "../../shared/api/runtime";
 import { clearRecoverableClientState } from "../utils/recoverableClientState";
 import type { AppContainerViewProps } from "./appContainerViewTypes";
+import { ResearchAgentGlobalStatusHost } from "./agent/ResearchAgentGlobalStatusHost";
 export { createAppContainerViewBridge } from "./appContainerViewBridge";
-
-const AppWorkspaceShell = lazy(async () => {
-  const module = await import("./AppWorkspaceShell");
-  return { default: module.AppWorkspaceShell };
-});
+const AppWorkspaceShell = lazy(async () => ({ default: (await import("./AppWorkspaceShell")).AppWorkspaceShell }));
 
 export function AppContainerView(props: AppContainerViewProps) {
   const {
@@ -64,6 +61,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     handleShareConflictResolve = () => undefined,
     t,
     recoverWorkspaceLayout,
+    researchAgentRuntime,
     page,
     pageRailItems,
     shellLayout,
@@ -105,6 +103,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     agentSessionPickerIndex,
     agentRollbackVisible,
     explorerGitDecorations,
+    agentResourceLocks,
     SHELL_MIN,
     settingsPanel,
     gitPanel,
@@ -380,6 +379,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 agentRollbackVisible={agentRollbackVisible}
                 events={events}
                 explorerGitDecorations={explorerGitDecorations}
+                agentResourceLocks={agentResourceLocks}
                 shellMin={SHELL_MIN}
                 settings={settings}
                 settingsPanel={settingsPanel}
@@ -469,6 +469,14 @@ export function AppContainerView(props: AppContainerViewProps) {
           )}
         </AppErrorBoundary>
       </div>
+
+      <ResearchAgentGlobalStatusHost
+        runtime={researchAgentRuntime}
+        onPageChange={setPage}
+        onSelectLibraryPath={setSelectedLibraryPath}
+        onSelectWorkspacePath={handleSelectWorkspacePath}
+        t={t}
+      />
 
       <AppOverlays
         overlay={overlay}

@@ -1,5 +1,6 @@
 import { previewKnowledgeMutation } from "../../shared/api/knowledge";
 import type { FsAction, FsScope } from "../../shared/types/app";
+import { requestAppConfirm } from "../dialog/appDialogBridge";
 
 type TranslationFn = (key: any) => string;
 
@@ -12,7 +13,7 @@ export async function requestKnowledgeMutationApproval(input: {
   path: string;
   targetPath?: string;
   t: TranslationFn;
-  confirm?: (message: string) => boolean;
+  confirm?: (message: string) => boolean | Promise<boolean>;
 }): Promise<string | null | undefined> {
   const preview = await previewKnowledgeMutation({
     projectId: input.projectId,
@@ -31,14 +32,19 @@ export async function requestKnowledgeMutationApproval(input: {
   const overflow = preview.affectedItems.length > 5
     ? `\n+${preview.affectedItems.length - 5}`
     : "";
-  const message = [
-    input.t("knowledge.confirmMutation"),
-    "",
+  const description = [
     `${input.t("knowledge.confirmMutationCount")}: ${preview.affectedItems.length}`,
     affected ? `${affected}${overflow}` : "",
   ].filter(Boolean).join("\n");
-  const confirm = input.confirm ?? ((value: string) => window.confirm(value));
-  if (!confirm(message)) {
+  const message = `${input.t("knowledge.confirmMutation")}\n\n${description}`;
+  const approved = input.confirm
+    ? await input.confirm(message)
+    : await requestAppConfirm({
+        title: input.t("knowledge.confirmMutation"),
+        description,
+        tone: "danger",
+      });
+  if (!approved) {
     return null;
   }
   const token = preview.approval?.token;

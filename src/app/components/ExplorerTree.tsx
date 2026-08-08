@@ -25,6 +25,8 @@ import {
 } from "./explorer/treeUtils";
 import type { ResourceNode } from "../../shared/types/app";
 import { KnowledgeNodeStatus } from "./explorer/KnowledgeNodeStatus";
+import { normalizeResearchResourcePath } from "../../shared/utils/researchResourceLock";
+import { ExplorerAgentLock } from "./explorer/ExplorerAgentLock";
 type TranslationFn = (key: any) => string;
 
 export function ExplorerTree(props: {
@@ -37,6 +39,7 @@ export function ExplorerTree(props: {
     string,
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
   >;
+  lockedPaths?: string[];
   allowRescan?: boolean;
   busy?: boolean;
   onSelect: (path: string) => void;
@@ -60,6 +63,7 @@ export function ExplorerTree(props: {
     selectedPath,
     dirtyByPath,
     gitDecorations,
+    lockedPaths = [],
     allowRescan,
     busy,
     onSelect,
@@ -87,6 +91,10 @@ export function ExplorerTree(props: {
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
   const displayedTree = tree;
+  const lockedPathSet = useMemo(
+    () => new Set(lockedPaths.map(normalizeResearchResourcePath).filter(Boolean)),
+    [lockedPaths],
+  );
   const directoryPaths = useMemo(() => {
     const paths: string[] = [];
     const walk = (nodes: ResourceNode[]) => {
@@ -303,6 +311,9 @@ export function ExplorerTree(props: {
     const isExpanded = isDirectory ? expandedMap[node.relativePath] !== false : false;
     const isRenaming = editing?.mode === "rename" && editing.path === node.relativePath;
     const isDirty = !isDirectory && mode === "workspace" && Boolean(dirtyByPath?.[node.relativePath]);
+    const isAgentLocked = !isDirectory
+      && mode === "workspace"
+      && lockedPathSet.has(normalizeResearchResourcePath(node.relativePath));
     const isSelected = !isDirectory && selectedPaths.includes(node.relativePath);
     const decoration = !isDirectory ? gitDecorations?.[node.relativePath] : undefined;
     const isIgnored = Boolean(decoration?.ignored);
@@ -435,6 +446,7 @@ export function ExplorerTree(props: {
                   aria-label={t("editor.unsaved.title")}
                 />
               ) : null}
+              <ExplorerAgentLock locked={isAgentLocked} label={t("research.agent.resourceLocked")} />
               <KnowledgeNodeStatus
                 locked={node.knowledgeLocked}
                 state={node.knowledgeState}

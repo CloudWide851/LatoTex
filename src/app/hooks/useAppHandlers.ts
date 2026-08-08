@@ -5,6 +5,7 @@ import { projectPrepareSearchIndex } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
   getWorkspaceTree,
+  readFile,
   workspaceOpenTerminal,
   workspaceRevealInSystem,
   writeFile,
@@ -338,9 +339,28 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     editorRef,
     t,
   });
+  const handleCompilePath = useCallback(async (mainPath: string) => {
+    if (!activeProjectId || !/\.tex$/i.test(mainPath)) {
+      throw new Error("research.ui_command.compile_target_invalid");
+    }
+    const mainContent = mainPath === selectedFile
+      ? (await resolveSelectedFileContent()) ?? editorContent
+      : (await readFile(activeProjectId, mainPath)).content ?? "";
+    if (!mainContent.trim()) {
+      throw new Error("research.ui_command.compile_source_empty");
+    }
+    return runCompilePassForAgent({
+      projectId: activeProjectId,
+      mainPath,
+      mainContent,
+      options: { updatePreview: true, emitToast: false },
+    });
+  }, [activeProjectId, editorContent, resolveSelectedFileContent, runCompilePassForAgent, selectedFile]);
   const {
     handleRunAgent,
+    handleRunAgentForPath,
     handleAcceptAgentProposal,
+    handleAcceptAgentProposalByPath,
     handleRejectAgentProposal,
     handleResolveAgentPendingAction,
   } = useAgentWorkflowHandlers({
@@ -531,11 +551,14 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleSaveFile,
     handleWriteSelectedFileContent,
     handleCompile,
+    handleCompilePath,
     handleExportCompiledPdf,
     handleEditorUndo,
     handleEditorRedo,
     handleRunAgent,
+    handleRunAgentForPath,
     handleAcceptAgentProposal,
+    handleAcceptAgentProposalByPath,
     handleRejectAgentProposal,
     handleResolveAgentPendingAction,
     handleSaveSettings,

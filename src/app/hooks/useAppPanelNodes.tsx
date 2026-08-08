@@ -31,9 +31,9 @@ const LazyAnalysisWorkspace = lazy(async () => {
   return { default: module.AnalysisWorkspace };
 });
 
-const LazyAgentControlCenter = lazy(async () => {
-  const module = await import("../components/agents/AgentControlCenter");
-  return { default: module.AgentControlCenter };
+const LazyUnifiedAgentWorkspace = lazy(async () => {
+  const module = await import("../components/agents/UnifiedAgentWorkspace");
+  return { default: module.UnifiedAgentWorkspace };
 });
 
 const LazySettingsPanel = lazy(async () => {
@@ -290,7 +290,7 @@ export function useAppPanelNodes(params: any) {
 
   const agentPanel = (
     <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-      <LazyAgentControlCenter
+      <LazyUnifiedAgentWorkspace
         projectId={activeProjectId}
         models={activeModelCatalog}
         t={t}

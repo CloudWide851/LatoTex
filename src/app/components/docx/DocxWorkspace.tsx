@@ -5,6 +5,7 @@ import { cn } from "../../../lib/utils";
 import { readDocx, writeDocx } from "../../../shared/api/docx";
 import type { ResourceNode } from "../../../shared/types/app";
 import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
+import { requestAppTextInput } from "../../dialog/appDialogBridge";
 import { DocxRibbonPopup, type RibbonTab } from "./DocxRibbonPopup";
 import {
   knowledgeFailureMessage,
@@ -286,9 +287,13 @@ export function DocxWorkspace(props: {
     }, 1200);
   }, [autoSaveEnabled, dirty, loading, save, saving, selectedPath]);
 
-  const insertLink = () => {
+  const insertLink = async () => {
     captureEditorSelection();
-    const url = window.prompt(t("docx.linkPrompt"));
+    const url = await requestAppTextInput({
+      title: t("docx.linkPrompt"),
+      label: t("docx.linkPrompt"),
+      required: true,
+    });
     if (url) {
       applyFormat("createLink", url);
     }

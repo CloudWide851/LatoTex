@@ -55,11 +55,19 @@ describe("workspacePageStorage", () => {
     expect(isWorkspacePage("plugins")).toBe(true);
   });
 
-  it("falls back to latex when no page is persisted", () => {
+  it("accepts overview, submission, and the Agent Studio page", () => {
+    for (const page of ["overview", "submission", "agents"] as const) {
+      persistWorkspacePage(page);
+      expect(loadWorkspacePage()).toBe(page);
+      expect(isWorkspacePage(page)).toBe(true);
+    }
+  });
+
+  it("falls back to overview when no page is persisted", () => {
     expect(loadWorkspacePage()).toBe(DEFAULT_WORKSPACE_PAGE);
   });
 
-  it("falls back to latex when the persisted value is invalid", () => {
+  it("falls back to overview when the persisted value is invalid", () => {
     localStorage.setItem("latotex.workspace.page", "unknown-page");
 
     expect(loadWorkspacePage()).toBe(DEFAULT_WORKSPACE_PAGE);

@@ -5,6 +5,7 @@ import {
   mutateKnowledgeTopic,
 } from "../../../shared/api/knowledge";
 import type { KnowledgeTopic } from "../../../shared/types/app";
+import { requestAppTextInput } from "../../dialog/appDialogBridge";
 import { knowledgeFailureMessage } from "../../hooks/knowledgeMutationApproval";
 
 type TranslationFn = (key: any) => string;
@@ -45,7 +46,12 @@ export function KnowledgeTopicPanel(props: {
     action: "rename" | "hide" | "unhide" | "promote" | "merge",
   ) => {
     const label = action === "rename"
-      ? window.prompt(props.t("knowledge.topic.renamePrompt"), topic.label)?.trim()
+      ? (await requestAppTextInput({
+          title: props.t("knowledge.topic.renamePrompt"),
+          label: props.t("knowledge.topic.rename"),
+          initialValue: topic.label,
+          required: true,
+        }))?.trim()
       : undefined;
     if (action === "rename" && !label) {
       return;

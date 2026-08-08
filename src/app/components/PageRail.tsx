@@ -8,6 +8,7 @@ export type PageRailItem = {
   id: WorkspacePage;
   label: string;
   icon: LucideIcon;
+  group: "research" | "tools";
 };
 
 type RailTooltip = {
@@ -30,8 +31,10 @@ export function PageRail(props: {
   items: PageRailItem[];
   activePage: WorkspacePage;
   onChange: (next: WorkspacePage) => void;
+  researchGroupLabel: string;
+  toolsGroupLabel: string;
 }) {
-  const { items, activePage, onChange } = props;
+  const { items, activePage, onChange, researchGroupLabel, toolsGroupLabel } = props;
   const [tooltip, setTooltip] = useState<RailTooltip | null>(null);
   const tooltipContainer = useMemo(
     () => (typeof document !== "undefined" ? document.body : null),
@@ -41,46 +44,50 @@ export function PageRail(props: {
   return (
     <aside className="app-material-shell relative h-full rounded-lg border px-1.5 py-2 motion-slide-up">
       <div className="flex h-full flex-col items-center gap-2">
-        {items.map((item) => {
+        {items.map((item, index) => {
           const Icon = item.icon;
           const selected = activePage === item.id;
+          const startsGroup = index === 0 || items[index - 1]?.group !== item.group;
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
-              aria-label={item.label}
-              aria-current={selected ? "page" : undefined}
-              title={item.label}
-              className={cn(
-                "app-page-rail-item relative flex h-11 w-11 items-center justify-center rounded-md border transition",
-                selected
-                  ? "app-page-rail-item--active"
-                  : "app-page-rail-item--idle",
-              )}
-              onClick={() => onChange(item.id)}
-              onMouseEnter={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                const next = clampTooltipPosition(rect.right + 10, rect.top + rect.height / 2);
-                setTooltip({
-                  label: item.label,
-                  x: next.x,
-                  y: next.y,
-                });
-              }}
-              onFocus={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                const next = clampTooltipPosition(rect.right + 10, rect.top + rect.height / 2);
-                setTooltip({
-                  label: item.label,
-                  x: next.x,
-                  y: next.y,
-                });
-              }}
-              onMouseLeave={() => setTooltip((prev) => (prev?.label === item.label ? null : prev))}
-              onBlur={() => setTooltip((prev) => (prev?.label === item.label ? null : prev))}
+              className={cn("grid place-items-center", startsGroup && item.group === "tools" && "mt-auto pt-3")}
+              role={startsGroup ? "group" : undefined}
+              aria-label={startsGroup
+                ? (item.group === "research" ? researchGroupLabel : toolsGroupLabel)
+                : undefined}
             >
-              <Icon className="h-[18px] w-[18px]" />
-            </button>
+              {startsGroup && item.group === "tools" ? (
+                <span aria-hidden="true" className="mb-3 h-px w-7 bg-[color:var(--app-border)]" />
+              ) : null}
+              <button
+                type="button"
+                aria-label={item.label}
+                aria-current={selected ? "page" : undefined}
+                title={item.label}
+                className={cn(
+                  "app-page-rail-item relative flex h-11 w-11 items-center justify-center rounded-md border transition",
+                  selected
+                    ? "app-page-rail-item--active"
+                    : "app-page-rail-item--idle",
+                )}
+                onClick={() => onChange(item.id)}
+                onMouseEnter={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const next = clampTooltipPosition(rect.right + 10, rect.top + rect.height / 2);
+                  setTooltip({ label: item.label, x: next.x, y: next.y });
+                }}
+                onFocus={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const next = clampTooltipPosition(rect.right + 10, rect.top + rect.height / 2);
+                  setTooltip({ label: item.label, x: next.x, y: next.y });
+                }}
+                onMouseLeave={() => setTooltip((prev) => (prev?.label === item.label ? null : prev))}
+                onBlur={() => setTooltip((prev) => (prev?.label === item.label ? null : prev))}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </button>
+            </div>
           );
         })}
       </div>
