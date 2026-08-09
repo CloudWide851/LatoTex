@@ -4,6 +4,7 @@ import { resolveScaledRichTextHtml, type TextBoxDisplayMetrics } from "./pdfAnno
 import { focusAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
 import { bringBoxToFront } from "./pdfAnnotationLayerUtils";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import {
   isRichTextEmpty,
   normalizeStoredRichHtml,
@@ -85,7 +86,7 @@ export function PdfAnnotationTextBoxLayer(props: {
             className={`absolute overflow-visible rounded ${selected ? "ring-1 ring-primary-300" : ""}`}
             data-annotation-box="true"
             data-annotation-ignore-lens="true"
-            style={{
+            {...cspStyle({
               left: `${((dragPreview?.boxId === box.id ? dragPreview.x : box.x) / 1000) * 100}%`,
               top: `${((dragPreview?.boxId === box.id ? dragPreview.y : box.y) / 1000) * 100}%`,
               width: `${((dragPreview?.boxId === box.id ? dragPreview.w : box.w) / 1000) * 100}%`,
@@ -97,7 +98,7 @@ export function PdfAnnotationTextBoxLayer(props: {
               borderWidth: `${box.style.borderWidth * displayScale}px`,
               backgroundColor: box.style.backgroundColor,
               cursor: editing ? "text" : "default",
-            }}
+            })}
             onMouseDown={(event) => {
               if (readOnly) {
                 return;
@@ -160,7 +161,7 @@ export function PdfAnnotationTextBoxLayer(props: {
                 data-textbox-editing="true"
                 data-annotation-ignore-lens="true"
                 className="h-full w-full overflow-auto rounded border-none bg-transparent outline-none"
-                style={{
+                {...cspStyle({
                   color: box.style.textColor,
                   fontSize: `${box.style.fontSize * displayScale}px`,
                   fontFamily: box.style.fontFamily,
@@ -174,7 +175,7 @@ export function PdfAnnotationTextBoxLayer(props: {
                     box.style.backgroundColor === "transparent" && box.style.borderWidth === 0
                       ? "inset 0 0 0 1px rgba(34, 197, 94, 0.45)"
                       : undefined,
-                }}
+                })}
                 dangerouslySetInnerHTML={{ __html: displayHtml }}
                 onClick={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}
@@ -212,7 +213,7 @@ export function PdfAnnotationTextBoxLayer(props: {
                 data-textbox-content="true"
                 data-textbox-static="true"
                 data-annotation-ignore-lens="true"
-                style={{
+                {...cspStyle({
                   color: box.style.textColor,
                   fontSize: `${box.style.fontSize * displayScale}px`,
                   fontFamily: box.style.fontFamily,
@@ -222,7 +223,7 @@ export function PdfAnnotationTextBoxLayer(props: {
                   fontWeight: box.style.fontWeight,
                   fontStyle: box.style.fontStyle,
                   textDecoration: box.style.textDecoration,
-                }}
+                })}
                 dangerouslySetInnerHTML={{ __html: displayHtml }}
               />
             )}
@@ -232,7 +233,7 @@ export function PdfAnnotationTextBoxLayer(props: {
                 data-textbox-resize-handle="true"
                 data-annotation-ignore-lens="true"
                 className="absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize bg-transparent"
-                style={{ touchAction: "none" }}
+                {...cspStyle({ touchAction: "none" })}
                 aria-label={t("library.viewer.textboxResize")}
                 title={t("library.viewer.textboxResize")}
                 onPointerDown={(event) => {

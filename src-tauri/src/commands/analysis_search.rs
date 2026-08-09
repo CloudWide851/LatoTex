@@ -1,6 +1,6 @@
 use super::analysis_fulltext::{enrich_academic_fulltext, FulltextRuntimeContext};
 use super::analysis_research_providers::expand_semantic_scholar_related;
-use super::analysis_search_coordinator::run_remote_providers;
+use super::analysis_search_coordinator::{run_remote_providers, RemoteSearchBundle};
 use super::{
     AcademicProviderHealth, ReferenceCheckItem, ReferenceCheckResponse, ReferenceEvidence,
 };
@@ -318,6 +318,8 @@ pub(crate) fn run_reference_check_queries(
     project_root: Option<&Path>,
     unpaywall_contact_email: Option<&str>,
     deep: bool,
+    allow_remote_metadata: bool,
+    allow_verified_oa_download: bool,
 ) -> Result<ReferenceCheckResponse, String> {
     let limit = limit.clamp(1, 8) as usize;
     let queries = queries
@@ -360,15 +362,24 @@ pub(crate) fn run_reference_check_queries(
         if !local.is_empty() {
             academic_lists.push(local);
         }
-        let remote = run_remote_providers(cache_db_path, &query, limit, unpaywall_contact_email);
+        let remote = if allow_remote_metadata {
+            run_remote_providers(cache_db_path, &query, limit, unpaywall_contact_email)
+        } else {
+            RemoteSearchBundle {
+                academic_lists: Vec::new(),
+                web_lists: Vec::new(),
+                failures: Vec::new(),
+                health: Vec::new(),
+            }
+        };
         academic_lists.extend(remote.academic_lists);
         provider_health.extend(remote.health);
-        if deep {
+        if deep && allow_remote_metadata {
             let preliminary = reciprocal_rank_merge(academic_lists.clone(), limit);
             academic_lists.extend(expand_semantic_scholar_related(&preliminary, limit));
         }
         let academic_results = reciprocal_rank_merge(academic_lists, limit);
-        let academic_results = if deep {
+        let academic_results = if deep && allow_verified_oa_download {
             let context = app_data_dir.zip(project_id).zip(project_root).map(
                 |((app_data_dir, project_id), project_root)| FulltextRuntimeContext {
                     db_path: cache_db_path,
@@ -402,7 +413,7 @@ pub(crate) fn run_reference_check_queries(
             web_results,
             provider_errors,
             provider_health,
-            network_used: true,
+            network_used: allow_remote_metadata,
         });
     }
     Ok(ReferenceCheckResponse { items })
@@ -410,7 +421,9 @@ pub(crate) fn run_reference_check_queries(
 
 #[cfg(test)]
 mod tests {
-    use super::{evidence_key, reciprocal_rank_merge, stable_web_merge};
+    use super::{
+        evidence_key, reciprocal_rank_merge, run_reference_check_queries, stable_web_merge,
+    };
     use crate::commands::analysis::ReferenceEvidence;
 
     fn item(
@@ -492,5 +505,38 @@ mod tests {
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].source, "duckduckgo");
         assert_eq!(merged[0].rrf_score, 0.0);
+    }
+
+    #[test]
+    fn disabled_network_policy_keeps_local_bib_search_offline() {
+        let root = std::env::temp_dir().join(format!(
+            "latotex-offline-reference-search-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("sources.bib"),
+            "@article{local,\n title={Offline evidence result},\n author={Ada Researcher},\n year={2026}\n}\n",
+        )
+        .unwrap();
+        let response = run_reference_check_queries(
+            &root.join("cache.sqlite3"),
+            &root,
+            None,
+            Some("project-offline"),
+            vec!["offline evidence".to_string()],
+            5,
+            Some(&root),
+            None,
+            true,
+            false,
+            false,
+        )
+        .unwrap();
+        assert_eq!(response.items.len(), 1);
+        assert!(!response.items[0].network_used);
+        assert_eq!(response.items[0].academic_results.len(), 1);
+        assert_eq!(response.items[0].academic_results[0].source, "local_bib");
+        let _ = std::fs::remove_dir_all(root);
     }
 }

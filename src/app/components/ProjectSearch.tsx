@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { ProjectSearchHit, ProjectSearchScope } from "../../shared/types/app";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import {
   buildFloatingSurfaceStyle,
   dropdownItemClassName,
@@ -148,7 +149,7 @@ export function ProjectSearch(props: {
     <div
       ref={panelRef}
       className={dropdownSurfaceClassName("fixed z-[520] max-h-[min(24rem,calc(100vh-3.5rem))] overflow-y-auto overflow-x-hidden")}
-      style={panelStyle}
+      {...cspStyle(panelStyle)}
     >
       {results.length === 0 ? (
         <div className="space-y-2 p-2">

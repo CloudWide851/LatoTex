@@ -330,6 +330,16 @@ pub(crate) fn run_reference_check_queries_for_project(
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
         });
+    let (allow_remote_metadata, allow_verified_oa_download) = match project_id {
+        Some(project_id) => {
+            let policy = storage::load_research_network_policy(db_path, project_id)?;
+            (
+                policy.academic_metadata_enabled,
+                policy.verified_oa_download_enabled,
+            )
+        }
+        None => (true, false),
+    };
     analysis_search::run_reference_check_queries(
         db_path,
         runtime_root,
@@ -340,6 +350,8 @@ pub(crate) fn run_reference_check_queries_for_project(
         project_root.as_deref(),
         configured_email.as_deref(),
         deep,
+        allow_remote_metadata,
+        allow_verified_oa_download,
     )
 }
 

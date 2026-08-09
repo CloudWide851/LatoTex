@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { WorkspacePage } from "../../shared/types/app";
+import { cspStyle } from "../../shared/ui/cspStyle";
 
 export type PageRailItem = {
   id: WorkspacePage;
@@ -95,7 +96,7 @@ export function PageRail(props: {
         ? createPortal(
           <div
             className="app-material-floating pointer-events-none fixed z-[320] -translate-y-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[11px]"
-            style={{ left: tooltip.x, top: tooltip.y }}
+            {...cspStyle({ left: tooltip.x, top: tooltip.y })}
           >
             {tooltip.label}
           </div>,

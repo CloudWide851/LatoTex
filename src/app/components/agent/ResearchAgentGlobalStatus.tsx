@@ -16,6 +16,7 @@ import { Button } from "../../../components/ui/button";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import type { ResearchAgentRuntimeProjection } from "../../hooks/useResearchAgentRuntime";
 import { cn } from "../../../lib/utils";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type TranslationFn = (key: MessageKey) => string;
 
@@ -147,7 +148,7 @@ export function ResearchAgentGlobalStatus(props: {
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[color:var(--editor-paper-edge)]">
           <div
             className="h-full rounded-full bg-[color:var(--app-accent)] transition-[width] motion-reduce:transition-none"
-            style={{ width: `${progress}%` }}
+            {...cspStyle({ width: `${progress}%` })}
           />
         </div>
         <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-[color:var(--app-muted)]">

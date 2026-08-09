@@ -15,6 +15,7 @@ import {
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./annotationPalette";
 import type { AnnotationTextStylePreset } from "./annotationModel";
 import { Select } from "../../../components/ui/select";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type TranslationFn = (key: any) => string;
@@ -50,7 +51,7 @@ function ColorSwatch(props: {
           ? "border-slate-800 ring-2 ring-primary-200"
           : "border-slate-300 hover:border-slate-500",
       ].join(" ")}
-      style={{ backgroundColor: color }}
+      {...cspStyle({ backgroundColor: color })}
       disabled={disabled}
       onClick={onClick}
       title={title}
@@ -218,7 +219,7 @@ export function LibraryPdfToolSidebar(props: {
           <Highlighter className="h-4 w-4" />
           <span
             className="absolute ml-3.5 mt-3.5 h-2.5 w-2.5 rounded-full border border-white shadow"
-            style={{ backgroundColor: highlightColor }}
+            {...cspStyle({ backgroundColor: highlightColor })}
           />
         </button>
 
@@ -240,7 +241,7 @@ export function LibraryPdfToolSidebar(props: {
           <Type className="h-4 w-4" />
           <span
             className="absolute ml-3.5 mt-3.5 h-2.5 w-2.5 rounded-full border border-white shadow"
-            style={{ backgroundColor: textColor }}
+            {...cspStyle({ backgroundColor: textColor })}
           />
         </button>
 

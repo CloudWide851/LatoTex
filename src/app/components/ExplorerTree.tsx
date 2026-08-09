@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { FsAction } from "../../shared/types/app";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import { ExplorerContextMenu } from "./explorer/ExplorerContextMenu";
 import { ExplorerLinkDraftPanel, ExplorerTransferPanel } from "./explorer/ExplorerInlinePanels";
 import {
@@ -336,7 +337,7 @@ export function ExplorerTree(props: {
                 : "explorer-node-fg hover:bg-slate-100 hover:text-slate-900",
           )}
           aria-selected={!isDirectory && isSelected}
-          style={indentStyle}
+          {...cspStyle(indentStyle)}
           title={node.relativePath}
           draggable={false}
           data-explorer-drop-directory={isDirectory ? "true" : undefined}
@@ -583,10 +584,10 @@ export function ExplorerTree(props: {
         ? createPortal(
           <div
             className="app-material-floating pointer-events-none fixed z-[320] rounded-md border-emerald-300 px-2 py-1 text-xs text-slate-700"
-            style={{
+            {...cspStyle({
               left: dragPreview.x + 14,
               top: dragPreview.y + 14,
-            }}
+            })}
           >
             {dragPreview.name}
           </div>,

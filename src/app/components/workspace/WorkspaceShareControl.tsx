@@ -2,6 +2,7 @@ import { AlertTriangle, Check, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Refres
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Select } from "../../../components/ui/select";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
 
 type TranslationFn = (key: any) => string;
@@ -59,7 +60,7 @@ function ParticipantList(props: { participants: ShareParticipantInfo[]; t: Trans
           <div className="flex min-w-0 items-center gap-2">
             <span
               className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-              style={{ background: avatarColor(item.username || item.participantId) }}
+              {...cspStyle({ background: avatarColor(item.username || item.participantId) })}
             >
               {(item.username || "G").slice(0, 1).toUpperCase()}
             </span>
@@ -91,7 +92,7 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
         >
           <span
             className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-            style={{ background: avatarColor(item.username || item.participantId) }}
+            {...cspStyle({ background: avatarColor(item.username || item.participantId) })}
           >
             {(item.username || item.participantId).slice(0, 1).toUpperCase()}
           </span>

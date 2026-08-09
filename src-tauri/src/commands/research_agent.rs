@@ -5,12 +5,13 @@ use crate::models::{
     ResearchCapabilityDescriptor, ResearchChangeCheckpoint, ResearchChangeCheckpointListInput,
     ResearchChangeCheckpointUndoInput, ResearchChangeCheckpointUndoResult,
     ResearchChatMigrationInput, ResearchChatMigrationResult, ResearchChatStore,
-    ResearchChatStoreReplaceInput, ResearchPlanApproval, ResearchPlanApprovalResolveInput,
-    ResearchPlanApproveInput, ResearchPlanExecuteInput, ResearchPlanExecutionAccepted,
-    ResearchPlanSaveInput, ResearchPlanVersion, ResearchProjectInput, ResearchRunControlInput,
-    ResearchRunListInput, ResearchRunRecoveryResponse, ResearchRunsRecoverInput, ResearchTask,
-    ResearchTaskCreateInput, ResearchUiCommand, ResearchUiCommandListInput,
-    ResearchUiCommandResolveInput, ResearchWorkspaceSnapshot,
+    ResearchChatStoreReplaceInput, ResearchNetworkPolicy, ResearchNetworkPolicyUpdateInput,
+    ResearchPlanApproval, ResearchPlanApprovalResolveInput, ResearchPlanApproveInput,
+    ResearchPlanExecuteInput, ResearchPlanExecutionAccepted, ResearchPlanSaveInput,
+    ResearchPlanVersion, ResearchProjectInput, ResearchRunControlInput, ResearchRunListInput,
+    ResearchRunRecoveryResponse, ResearchRunsRecoverInput, ResearchTask, ResearchTaskCreateInput,
+    ResearchUiCommand, ResearchUiCommandListInput, ResearchUiCommandResolveInput,
+    ResearchWorkspaceSnapshot,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -27,6 +28,22 @@ pub fn research_workspace_get(
     input: ResearchProjectInput,
 ) -> Result<ResearchWorkspaceSnapshot, String> {
     storage::research_workspace_snapshot(&state.db_path, &state.runtime_root, &input.project_id)
+}
+
+#[tauri::command]
+pub fn research_network_policy_get(
+    state: State<'_, AppState>,
+    input: ResearchProjectInput,
+) -> Result<ResearchNetworkPolicy, String> {
+    storage::load_research_network_policy(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn research_network_policy_update(
+    state: State<'_, AppState>,
+    input: ResearchNetworkPolicyUpdateInput,
+) -> Result<ResearchNetworkPolicy, String> {
+    storage::update_research_network_policy(&state.db_path, input)
 }
 
 #[tauri::command]

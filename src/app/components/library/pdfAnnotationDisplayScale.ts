@@ -1,3 +1,6 @@
+import { applyPersistedCspStyle, readPersistedCspStyle } from "../../../shared/ui/cspStyle";
+import { sanitizeRichTextHtml } from "./textboxRichText";
+
 const MIN_ANNOTATION_DISPLAY_SCALE = 0.35;
 const MAX_ANNOTATION_DISPLAY_SCALE = 2.4;
 
@@ -30,12 +33,10 @@ export function resolveScaledRichTextHtml(html: string, scale: number): string {
     return html;
   }
   const root = document.createElement("div");
-  root.innerHTML = html;
+  root.innerHTML = sanitizeRichTextHtml(html);
   for (const element of Array.from(root.querySelectorAll<HTMLElement>("*"))) {
-    const rawSize = element.style.fontSize.trim();
-    if (!rawSize) {
-      continue;
-    }
+    const entries = new Map(readPersistedCspStyle(element));
+    const rawSize = entries.get("font-size") ?? "";
     const match = rawSize.match(/^([0-9]*\.?[0-9]+)px$/i);
     if (!match) {
       continue;
@@ -44,7 +45,8 @@ export function resolveScaledRichTextHtml(html: string, scale: number): string {
     if (!Number.isFinite(size)) {
       continue;
     }
-    element.style.fontSize = `${Math.max(1, size * scale)}px`;
+    entries.set("font-size", `${Math.max(1, size * scale)}px`);
+    applyPersistedCspStyle(element, Array.from(entries.entries()));
   }
   return root.innerHTML;
 }

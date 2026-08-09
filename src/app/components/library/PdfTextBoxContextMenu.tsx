@@ -2,6 +2,7 @@ import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Trash2, Underline } f
 import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { Select } from "../../../components/ui/select";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 const FONT_FAMILIES = [
   "Segoe UI",
@@ -113,7 +114,7 @@ export function PdfTextBoxContextMenu(props: {
     <div
       data-textbox-menu="true"
       className={`app-material-floating ${positioning === "fixed" ? "fixed" : "absolute"} z-[620] w-80 rounded-lg p-3`}
-      style={{ left: x, top: y }}
+      {...cspStyle({ left: x, top: y })}
       onMouseDown={keepMenuOpen}
     >
       <div className="mb-2 text-xs font-semibold text-slate-700">{t("library.viewer.textbox.menu.title")}</div>
@@ -220,7 +221,7 @@ export function PdfTextBoxContextMenu(props: {
                 <button
                   key={color}
                   className={`h-6 w-full rounded border ${style.textColor.toLowerCase() === color.toLowerCase() ? "border-slate-700 ring-1 ring-slate-400" : "border-slate-300"}`}
-                  style={{ backgroundColor: color }}
+                  {...cspStyle({ backgroundColor: color })}
                   title={color}
                   onMouseDown={(event) => applyTextStyle(event, { textColor: color })}
                 />
@@ -233,7 +234,7 @@ export function PdfTextBoxContextMenu(props: {
             <button
               key={color}
               className={`h-7 w-full rounded border ${style.textColor.toLowerCase() === color.toLowerCase() ? "border-slate-700 ring-1 ring-slate-400" : "border-slate-300"}`}
-              style={{ backgroundColor: color }}
+              {...cspStyle({ backgroundColor: color })}
               title={color}
               onMouseDown={(event) => applyTextStyle(event, { textColor: color })}
             />

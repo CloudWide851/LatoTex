@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import type { FsAction } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import type { ExplorerMenuTarget } from "./treeUtils";
 
 type TranslationFn = (key: any) => string;
@@ -109,10 +110,10 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
     <div
       data-explorer-context-menu="true"
       className="app-material-floating fixed z-[260] min-w-40 overflow-hidden rounded-md py-1"
-      style={{
+      {...cspStyle({
         left: Math.max(8, Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : menu.x) - 180)),
         top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 250)),
-      }}
+      })}
     >
       {items.map((item) => (
         <button

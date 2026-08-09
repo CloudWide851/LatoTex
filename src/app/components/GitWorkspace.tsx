@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/button";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import { GitCommitTab } from "./git/GitCommitTab";
 import { GitHistoryTab } from "./git/GitHistoryTab";
 import type {
@@ -259,7 +260,7 @@ export function GitWorkspace(props: {
               <div className="h-2 overflow-hidden rounded bg-slate-200">
                 <div
                   className="h-full bg-primary-600 transition-all duration-200"
-                  style={{ width: `${downloadStatus.progressPercent}%` }}
+                  {...cspStyle({ width: `${downloadStatus.progressPercent}%` })}
                 />
               </div>
               <div className="flex items-center justify-between text-[11px] text-slate-500">

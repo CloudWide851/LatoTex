@@ -7,6 +7,13 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS research_network_policy (
+            singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+            academic_metadata_enabled INTEGER NOT NULL CHECK(academic_metadata_enabled IN (0, 1)),
+            verified_oa_download_enabled INTEGER NOT NULL CHECK(verified_oa_download_enabled IN (0, 1)),
+            external_model_evidence_excerpt_enabled INTEGER NOT NULL CHECK(external_model_evidence_excerpt_enabled IN (0, 1)),
+            updated_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS research_tasks (
             id TEXT PRIMARY KEY,
             goal_envelope TEXT NOT NULL,

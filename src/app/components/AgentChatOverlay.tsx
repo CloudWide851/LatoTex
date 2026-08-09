@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
 import { useI18n } from "../../i18n";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import { AgentSessionPicker } from "./agent/AgentSessionPicker";
 import { AgentTraceCards } from "./agent/AgentTraceCards";
 import { pickCommandSuggestions } from "../hooks/agentCommands";
@@ -384,10 +385,10 @@ export function AgentChatOverlay(props: {
                     ? "bottom-[calc(100%+6px)]"
                     : "top-[calc(100%+6px)]",
                 )}
-                style={{
+                {...cspStyle({
                   width: commandPanelWidth,
                   maxWidth: "min(360px, calc(100% - 2rem))",
-                }}
+                })}
               >
                 {commandSuggestions.map((item, index) => (
                   <button

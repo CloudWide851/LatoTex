@@ -130,6 +130,14 @@ export type ResearchCapabilityDescriptor = {
   requiresNetwork: boolean;
 };
 
+export type ResearchNetworkPolicy = {
+  projectId: string;
+  academicMetadataEnabled: boolean;
+  verifiedOaDownloadEnabled: boolean;
+  externalModelEvidenceExcerptEnabled: boolean;
+  updatedAt: string;
+};
+
 export type ResearchAgentRun = {
   runId: string;
   projectId: string;

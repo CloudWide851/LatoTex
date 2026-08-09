@@ -1,6 +1,7 @@
 import { Bot, Plus, RefreshCw, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import { Select } from "../../../components/ui/select";
 import { requestAppConfirm } from "../../dialog/appDialogBridge";
 import {
@@ -255,7 +256,10 @@ export function AgentControlCenter(props: {
                   setMobileTab("workflow");
                 }}
               >
-                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: profile.color }} />
+                <span
+                  className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                  {...cspStyle({ backgroundColor: profile.color })}
+                />
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-semibold text-slate-800">{profile.name}</span>
                   <span className="block truncate text-[11px] text-slate-500">

@@ -5,6 +5,7 @@ import {
   ModalOverlay,
 } from "react-aria-components";
 import { cn } from "../../lib/utils";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import { Button } from "./button";
 import { Input } from "./input";
 
@@ -326,7 +327,10 @@ export function AppProgressDialog(props: {
     >
       <div role="status" aria-label={props.progressLabel}>
         <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--editor-widget-border)]">
-          <div className="h-full bg-[color:var(--app-accent)] transition-transform motion-reduce:transition-none" style={{ transform: `scaleX(${progress / 100})`, transformOrigin: "left" }} />
+          <div
+            className="h-full bg-[color:var(--app-accent)] transition-transform motion-reduce:transition-none"
+            {...cspStyle({ transform: `scaleX(${progress / 100})`, transformOrigin: "left" })}
+          />
         </div>
         <p className="mt-2 text-right text-xs tabular-nums text-[color:var(--app-muted)]">{props.progressLabel}</p>
       </div>

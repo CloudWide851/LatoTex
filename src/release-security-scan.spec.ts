@@ -432,6 +432,25 @@ describe("release-security-scan", () => {
     expect(installSmoke).toContain("bundled uv verified");
   });
 
+  it("keeps the production WebView CSP free of broad inline style permission", () => {
+    const tauriConfig = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), "src-tauri/tauri.conf.json"), "utf8"),
+    ) as { app?: { security?: { csp?: string } } };
+    const csp = tauriConfig.app?.security?.csp ?? "";
+    const indexHtml = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf8");
+    const styleRegistry = fs.readFileSync(
+      path.resolve(process.cwd(), "src/shared/ui/cspStyle.ts"),
+      "utf8",
+    );
+
+    expect(csp).not.toContain("'unsafe-inline'");
+    expect(csp).toContain("style-src-attr 'none'");
+    expect(indexHtml).toContain("__TAURI_STYLE_NONCE__");
+    expect(indexHtml).toContain("data-latotex-dynamic-styles");
+    expect(styleRegistry).toContain("createElementWithStyleNonce");
+    expect(styleRegistry).toContain("TAURI_STYLE_NONCE_TOKEN");
+  });
+
   it("validates the reusable bundled resource contract and reports missing assets", () => {
     const resourcesRoot = createBundledResourceFixture();
     expect(() => verifyBundledResourceContract(resourcesRoot)).not.toThrow();

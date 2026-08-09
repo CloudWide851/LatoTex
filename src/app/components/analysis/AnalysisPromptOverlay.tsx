@@ -1,6 +1,7 @@
 import { Play, Square, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { cn } from "../../../lib/utils";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import { applyPromptRefSuggestion, suggestPromptRefs } from "../../hooks/analysisPromptRefs";
 
 type TranslationFn = (key: any) => string;
@@ -173,10 +174,10 @@ export function AnalysisPromptOverlay(props: {
                   ? "bottom-[calc(100%+6px)]"
                   : "top-[calc(100%+6px)]",
               )}
-              style={{
+              {...cspStyle({
                 width: suggestionPanelWidth,
                 maxWidth: "min(75%, 460px)",
-              }}
+              })}
             >
               {suggestions.map((path, index) => (
                 <button

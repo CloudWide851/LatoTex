@@ -4,6 +4,7 @@ import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import { readDocx, writeDocx } from "../../../shared/api/docx";
 import type { ResourceNode } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
 import { requestAppTextInput } from "../../dialog/appDialogBridge";
 import { DocxRibbonPopup, type RibbonTab } from "./DocxRibbonPopup";
@@ -499,7 +500,7 @@ export function DocxWorkspace(props: {
       </header>
       <div
         className="app-material-content docx-page-wrap min-h-0 overflow-auto px-3 py-4"
-        style={{ ["--docx-zoom" as string]: String(zoom) }}
+        {...cspStyle({ "--docx-zoom": String(zoom) })}
         onWheel={(event) => {
           if (event.ctrlKey && selectedPath) {
             event.preventDefault();

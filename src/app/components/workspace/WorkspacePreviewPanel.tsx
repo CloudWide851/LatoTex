@@ -4,6 +4,7 @@ import { FilePreviewPane } from "../FilePreviewPane";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import { shouldDisplayCompileProgress } from "../../hooks/compileWorkflowShared";
 import type { WorkspacePreviewMode } from "./workspacePreviewMode";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type TranslationFn = (key: any) => string;
 type LogTab = "events" | "status";
@@ -161,7 +162,7 @@ export function WorkspacePreviewPanel(props: {
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-sky-100">
             <div
               className="h-full rounded bg-sky-500 transition-all"
-              style={{ width: `${Math.max(2, installProgressPercent)}%` }}
+              {...cspStyle({ width: `${Math.max(2, installProgressPercent)}%` })}
             />
           </div>
         </div>

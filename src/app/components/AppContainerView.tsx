@@ -7,6 +7,7 @@ import { SleepWakeScreen } from "./SleepWakeScreen";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
 import { useAppAppearance } from "../hooks/useAppAppearance";
 import { runtimeClearVolatileCacheAndRestart } from "../../shared/api/runtime";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import { clearRecoverableClientState } from "../utils/recoverableClientState";
 import type { AppContainerViewProps } from "./appContainerViewTypes";
 import { ResearchAgentGlobalStatusHost } from "./agent/ResearchAgentGlobalStatusHost";
@@ -269,7 +270,7 @@ export function AppContainerView(props: AppContainerViewProps) {
   return (
     <div
       className={`app-material-canvas relative isolate flex h-screen w-screen flex-col overflow-hidden ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
-      style={appBackgroundStyle}
+      {...cspStyle(appBackgroundStyle)}
     >
       <div className="relative z-10 flex h-full w-full flex-col">
         <AppTopbar

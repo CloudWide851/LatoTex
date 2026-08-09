@@ -1,6 +1,7 @@
 use crate::models::{
     ResearchChatMigrationInput, ResearchChatMigrationResult, ResearchChatSession,
     ResearchChatStore, ResearchChatStoreReplaceInput, ResearchPlanApproveInput,
+    ResearchNetworkPolicy, ResearchNetworkPolicyUpdateInput,
     ResearchPlanSaveInput, ResearchPlanStep, ResearchPlanVersion, ResearchTask,
     ResearchTaskCreateInput, ResearchWorkspaceSnapshot,
 };

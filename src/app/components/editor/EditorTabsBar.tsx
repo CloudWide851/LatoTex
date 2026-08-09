@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import { runtimeLogWrite } from "../../../shared/api/runtime";
 import type { CloseTabsAction, EditorTab } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import { EditorTabContextMenu } from "./EditorTabContextMenu";
 import { runTabButtonAction, swallowTabButtonEvent } from "./editorTabButtonAction";
 import { editorTabOverflowConstants, resolveEditorTabOverflow } from "./editorTabOverflow";
@@ -227,7 +228,7 @@ export function EditorTabsBar(props: {
                     ? "editor-tab--active"
                     : "editor-tab--inactive",
                 )}
-                style={{ width: `${layout.width}px`, maxWidth: `${layout.width}px`, flexBasis: `${layout.width}px` }}
+                {...cspStyle({ width: layout.width, maxWidth: layout.width, flexBasis: layout.width })}
                 onClick={(event) => {
                   event.stopPropagation();
                   onSelect(tab.id);
@@ -284,7 +285,7 @@ export function EditorTabsBar(props: {
                     ? "editor-tab--active"
                     : "editor-tab--inactive",
                 )}
-                style={{ width: `${tabWidth}px`, maxWidth: `${tabWidth}px`, flexBasis: `${tabWidth}px` }}
+                {...cspStyle({ width: tabWidth, maxWidth: tabWidth, flexBasis: tabWidth })}
                 onClick={(event) => {
                   event.stopPropagation();
                   tab.onSelect();
@@ -414,7 +415,7 @@ export function EditorTabsBar(props: {
       {extraTabMenu && activeExtraTab?.renderMenu ? (
         <div
           className="editor-tabs-floating-menu fixed z-[72] min-w-56 max-w-[320px] overflow-hidden py-1"
-          style={{ left: extraTabMenu.x, top: extraTabMenu.y }}
+          {...cspStyle({ left: extraTabMenu.x, top: extraTabMenu.y })}
           onMouseDown={(event) => event.stopPropagation()}
         >
           {activeExtraTab.renderMenu(() => setExtraTabMenu(null))}

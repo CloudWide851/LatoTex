@@ -4,6 +4,7 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { channelsDingTalkTest } from "../../../shared/api/share";
 import type { AppSettings, ChannelPrefs } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
 import { EmailChannelSettingsCard } from "./EmailChannelSettingsCard";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
@@ -94,7 +95,7 @@ export function ChannelsSettingsSection(props: {
           <>
             <div
               className="absolute inset-0 bg-cover bg-center opacity-[0.24]"
-              style={{ backgroundImage: `url("${backgroundUrl}")` }}
+              {...cspStyle({ backgroundImage: `url("${backgroundUrl}")` })}
               aria-hidden="true"
             />
           </>

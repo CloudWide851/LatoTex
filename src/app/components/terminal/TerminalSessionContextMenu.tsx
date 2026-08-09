@@ -2,6 +2,7 @@ import { Pencil, RefreshCw, X, XCircle } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TranslationFn } from "./terminalTypes";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 const MENU_MARGIN = 8;
 
@@ -87,7 +88,7 @@ export function TerminalSessionContextMenu(props: {
       ref={menuRef}
       role="menu"
       className="app-material-floating fixed z-[320] min-w-44 overflow-hidden rounded-md border py-1 shadow-lg"
-      style={{ left: position.x, top: position.y }}
+      {...cspStyle({ left: position.x, top: position.y })}
       onContextMenu={(event) => event.preventDefault()}
     >
       <button type="button" role="menuitem" className={itemClass} onClick={() => run(onRename)}>

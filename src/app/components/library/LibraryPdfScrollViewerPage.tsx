@@ -7,6 +7,7 @@ import type {
   AnnotationTextStylePreset,
 } from "./annotationModel";
 import { PdfAnnotationLayer } from "./PdfAnnotationLayer";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type TranslationFn = (key: any) => string;
@@ -131,7 +132,7 @@ export function LibraryPdfScrollViewerPage(props: {
       }}
       data-page={page}
       className="relative mx-auto bg-white"
-      style={{ width: `${frameWidth}px` }}
+      {...cspStyle({ width: frameWidth })}
       onMouseMove={
         lensEnabled
           ? (event) => {

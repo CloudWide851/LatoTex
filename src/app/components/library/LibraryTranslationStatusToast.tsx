@@ -1,4 +1,5 @@
 import type { LibraryTranslationProgress } from "./useLibraryTranslationPanel";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type TranslationFn = (key: any) => string;
 
@@ -33,7 +34,10 @@ export function LibraryTranslationStatusToast(props: {
         </div>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${percent}%` }} />
+        <div
+          className="h-full rounded-full bg-primary-600 transition-all"
+          {...cspStyle({ width: `${percent}%` })}
+        />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
         <span className="min-w-0 truncate">{progress.message}</span>

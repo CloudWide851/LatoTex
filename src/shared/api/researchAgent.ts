@@ -15,6 +15,7 @@ import type {
   ResearchPlanVersion,
   ResearchTask,
   ResearchRunRecoveryResponse,
+  ResearchNetworkPolicy,
   ResearchUiCommand,
   ResearchWorkspaceSnapshot,
 } from "../types/researchAgent";
@@ -42,6 +43,16 @@ export function createResearchTask(
   return invokeCommand<ResearchTask>("research_task_create", {
     input: { projectId, goal, chatSessionId: chatSessionId ?? null },
   });
+}
+
+export function getResearchNetworkPolicy(projectId: string): Promise<ResearchNetworkPolicy> {
+  return invokeCommand<ResearchNetworkPolicy>("research_network_policy_get", {
+    input: { projectId },
+  });
+}
+
+export function updateResearchNetworkPolicy(input: Omit<ResearchNetworkPolicy, "updatedAt">) {
+  return invokeCommand<ResearchNetworkPolicy>("research_network_policy_update", { input });
 }
 
 export function startResearchPlanningWorkflow(input: {

@@ -13,6 +13,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./annotationPalette";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
@@ -139,7 +140,7 @@ export function LibraryAnnotationToolbar(props: {
             <button
               key={color}
               className={swatchClass(highlightColor === color)}
-              style={{ backgroundColor: color }}
+              {...cspStyle({ backgroundColor: color })}
               onClick={() => onHighlightColorChange(color)}
               title={t("library.viewer.highlightColor")}
               aria-label={t("library.viewer.highlightColor")}
@@ -156,7 +157,7 @@ export function LibraryAnnotationToolbar(props: {
             <button
               key={color}
               className={swatchClass(textColor === color)}
-              style={{ backgroundColor: color }}
+              {...cspStyle({ backgroundColor: color })}
               onClick={() => onTextColorChange(color)}
               title={t("library.viewer.textColor")}
               aria-label={t("library.viewer.textColor")}

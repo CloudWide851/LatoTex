@@ -8,6 +8,7 @@ import { resolveAnnotationDisplayScale, resolveTextBoxDisplayMetrics } from "./p
 import { applyStyleToEntireRichTextHtml, applyStyleToRichTextSelection, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
 import { usePdfTextBoxEditing } from "./usePdfTextBoxEditing";
 import { usePdfTextBoxTransform } from "./usePdfTextBoxTransform";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
@@ -322,7 +323,7 @@ export function PdfAnnotationLayer(props: {
         ref={layerRef}
         className="absolute inset-0 z-20"
         data-annotation-layer="true"
-        style={{
+        {...cspStyle({
           pointerEvents: readOnly ? "none" : "auto",
           cursor:
             mode === "highlight"
@@ -332,7 +333,7 @@ export function PdfAnnotationLayer(props: {
                 : mode === "textbox"
                   ? "text"
                   : "default",
-        }}
+        })}
         onMouseDown={(event) => {
           if (event.button !== 0) {
             return;

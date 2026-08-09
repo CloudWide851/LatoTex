@@ -1,0 +1,5 @@
+/*
+ * Intentionally empty. LatoTex inserts bounded, property-scoped rules into
+ * this same-origin stylesheet so the production WebView never needs inline
+ * style attributes or an unsafe-inline CSP exception.
+ */

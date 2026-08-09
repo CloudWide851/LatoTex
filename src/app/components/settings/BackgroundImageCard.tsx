@@ -4,6 +4,7 @@ import { ImageOff, Plus, RotateCcw, Scissors, Trash2 } from "lucide-react";
 import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/settings";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
 import type { AppSettings, BackgroundCropRect } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type TranslationFn = (key: any) => string;
 
@@ -177,7 +178,7 @@ function BackgroundCropEditor(props: {
         <div className="absolute inset-0 bg-slate-950/35" />
         <div
           className="absolute rounded-sm border-2 border-white bg-white/10 shadow-[0_0_0_999px_rgba(15,23,42,0.35)]"
-          style={cropStyle}
+          {...cspStyle(cropStyle)}
         />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">

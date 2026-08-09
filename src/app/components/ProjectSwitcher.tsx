@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { ProjectSummary } from "../../shared/types/app";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import {
   buildFloatingSurfaceStyle,
   dropdownItemClassName,
@@ -80,7 +81,7 @@ export function ProjectSwitcher(props: {
     <div
       ref={panelRef}
       className={dropdownSurfaceClassName("fixed z-[520] max-h-[min(18rem,calc(100vh-3.5rem))] overflow-y-auto overflow-x-hidden")}
-      style={panelStyle}
+      {...cspStyle(panelStyle)}
     >
       <div className="p-1.5">
         <div className={dropdownSearchRowClassName("mb-1.5 h-9")}>

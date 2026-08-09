@@ -7,6 +7,7 @@ import {
 } from "./terminalPersistence";
 import { TerminalSessionContextMenu } from "./TerminalSessionContextMenu";
 import type { TerminalTab, TranslationFn } from "./terminalTypes";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type ContextMenuState = {
   tabId: string;
@@ -146,7 +147,7 @@ export function TerminalSessionRail(props: {
   return (
     <aside
       className="relative flex shrink-0 flex-col border-r border-[color:var(--editor-shell-divider)] bg-[color:var(--editor-widget-bg)]"
-      style={{ width: clampTerminalRailWidth(width) }}
+      {...cspStyle({ width: clampTerminalRailWidth(width) })}
     >
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-[color:var(--editor-shell-divider)] px-2">
         <span className="truncate text-[11px] font-semibold text-[color:var(--editor-tab-muted)]">

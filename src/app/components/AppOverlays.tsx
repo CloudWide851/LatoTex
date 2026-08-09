@@ -1,8 +1,8 @@
-import type { CSSProperties } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 import { AppDialog } from "../../components/ui/dialog";
+import { cspStyle } from "../../shared/ui/cspStyle";
 import { ModelModal } from "./ModelModal";
 import { ProjectDeleteConfirmDialog, type ProjectDeleteConfirmIntent } from "./ProjectDeleteConfirmDialog";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
@@ -462,7 +462,7 @@ export function AppOverlays(props: AppOverlaysProps) {
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-sky-100">
                   <div
                     className="h-full rounded bg-sky-500 transition-all"
-                    style={{ width: `${Math.max(2, envPromptPercent)}%` }}
+                    {...cspStyle({ width: `${Math.max(2, envPromptPercent)}%` })}
                   />
                 </div>
                 <div className="mt-2 break-all text-[11px] text-sky-700">
@@ -519,15 +519,13 @@ export function AppOverlays(props: AppOverlaysProps) {
               "theme-ripple-surface",
               themeTransition.active && "is-active",
             )}
-            style={
-              {
+            {...cspStyle({
                 "--ripple-x": `${themeTransition.x}px`,
                 "--ripple-y": `${themeTransition.y}px`,
                 "--ripple-radius": `${themeTransition.radius}px`,
                 "--ripple-color":
                   themeTransition.target === "dark" ? "#0b1220" : "#f3f4f6",
-              } as CSSProperties
-            }
+            })}
           />
         </div>
       )}

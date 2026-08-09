@@ -452,4 +452,30 @@ mod research_store_tests {
         assert!(!raw.contains("improves survival in patients"));
         assert!(!raw.contains("https://doi.org/10.1000/test"));
     }
+
+    #[test]
+    fn research_network_policy_defaults_safe_and_round_trips_project_scope() {
+        let (_runtime_root, db_path, project) = fixture();
+        let project_id = project.summary.id;
+        let initial = load_research_network_policy(&db_path, &project_id).unwrap();
+        assert!(initial.academic_metadata_enabled);
+        assert!(initial.verified_oa_download_enabled);
+        assert!(!initial.external_model_evidence_excerpt_enabled);
+
+        let updated = update_research_network_policy(
+            &db_path,
+            crate::models::ResearchNetworkPolicyUpdateInput {
+                project_id: project_id.clone(),
+                academic_metadata_enabled: false,
+                verified_oa_download_enabled: false,
+                external_model_evidence_excerpt_enabled: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(updated.project_id, project_id);
+        assert!(!updated.academic_metadata_enabled);
+        assert!(!updated.verified_oa_download_enabled);
+        assert!(updated.external_model_evidence_excerpt_enabled);
+        assert_eq!(load_research_network_policy(&db_path, &updated.project_id).unwrap(), updated);
+    }
 }

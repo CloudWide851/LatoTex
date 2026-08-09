@@ -21,6 +21,7 @@ import {
   unarchiveKnowledgeItem,
 } from "../../../shared/api/knowledge";
 import { listProjects } from "../../../shared/api/projects";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import type {
   KnowledgeFetchResponse,
   KnowledgeGraphResponse,
@@ -394,7 +395,7 @@ export function KnowledgeWorkbench(props: {
             {queryActive ? t("knowledge.noResults") : t("knowledge.empty")}
           </div>
         ) : (
-          <div className="relative" style={{ height: rows.length * rowHeight }}>
+          <div className="relative" {...cspStyle({ height: rows.length * rowHeight })}>
             {visibleRows.map((row, visibleIndex) => {
               const index = start + visibleIndex;
               const hit = queryActive ? row as KnowledgeSearchHit : null;
@@ -415,7 +416,7 @@ export function KnowledgeWorkbench(props: {
                     "absolute left-0 grid w-full gap-1 border-b border-slate-100 px-3 py-2 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--app-accent)]",
                     selected ? "bg-sky-50/80" : "hover:bg-slate-50",
                   )}
-                  style={{ top: index * rowHeight, height: rowHeight }}
+                  {...cspStyle({ top: index * rowHeight, height: rowHeight })}
                   onClick={() => {
                     setSelectedItemId(item.itemId);
                     setSelectedEvidenceId(hit?.evidenceId ?? null);

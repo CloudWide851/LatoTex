@@ -6,6 +6,16 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PdfAnnotationLayer } from "./PdfAnnotationLayer";
 
+function expectPersistedStyle(html: string, property: string, value: string) {
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  const styled = host.querySelector<HTMLElement>("[data-latotex-rich-style]");
+  expect(styled).not.toBeNull();
+  expect(JSON.parse(styled?.getAttribute("data-latotex-rich-style") ?? "[]"))
+    .toContainEqual([property, value]);
+  expect(styled?.hasAttribute("style")).toBe(false);
+}
+
 function RichTextHarness(props: { mode: "select" | "textbox" }) {
   const [strokes, setStrokes] = useState<any[]>([]);
   const [textBoxes, setTextBoxes] = useState<any[]>([
@@ -186,7 +196,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
     });
 
     const state = JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
-    expect(state[0]?.html).toContain("font-weight: bold");
+    expectPersistedStyle(state[0]?.html ?? "", "font-weight", "bold");
 
     await act(async () => {
       root.unmount();
@@ -241,7 +251,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
 
     const state = JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
     expect(state[0]?.style?.fontWeight).toBe("bold");
-    expect(state[0]?.html).toContain("font-weight: bold");
+    expectPersistedStyle(state[0]?.html ?? "", "font-weight", "bold");
 
     await act(async () => {
       root.unmount();
@@ -310,7 +320,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
 
     expect(container.querySelector("[data-editing-box='textbox-1']")).not.toBeNull();
     const state = JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
-    expect(state[0]?.html).toContain("font-family: Arial");
+    expectPersistedStyle(state[0]?.html ?? "", "font-family", "Arial");
 
     await act(async () => {
       root.unmount();

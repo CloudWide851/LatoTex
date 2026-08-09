@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import type React from "react";
 import { cn } from "../../../lib/utils";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 export type VirtualizedListProps<T> = {
   items: T[];
@@ -85,7 +86,7 @@ export function VirtualizedList<T>(props: VirtualizedListProps<T>) {
         }
       }}
     >
-      <div style={{ paddingTop: range.before, paddingBottom: range.after }}>
+      <div {...cspStyle({ paddingTop: range.before, paddingBottom: range.after })}>
         <div className={contentClassName}>
           {visibleItems.map((item, offset) => {
             const index = range.start + offset;

@@ -4,6 +4,7 @@ import { Select } from "../../../components/ui/select";
 import { HelpTooltip } from "../../../components/ui/help-tooltip";
 import { cn } from "../../../lib/utils";
 import type { AppSettings } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 import type { ThemeMode } from "../../app-config";
 import {
   DEFAULT_GLASS_BLUR_PX,
@@ -78,7 +79,9 @@ export function AppearanceSettingsSection(props: {
                     ? "border-[var(--app-accent)] bg-[var(--app-accent)] text-white focus-visible:ring-[var(--control-primary-ring)]"
                     : "app-material-inset text-slate-700",
                 )}
-                style={selected ? { boxShadow: "0 0 0 1px color-mix(in srgb, var(--app-accent) 28%, transparent)" } : undefined}
+                {...cspStyle(selected
+                  ? { boxShadow: "0 0 0 1px color-mix(in srgb, var(--app-accent) 28%, transparent)" }
+                  : undefined)}
                 onClick={(event) =>
                   onThemeModeChange(item.id, {
                     clientX: event.clientX,
@@ -117,7 +120,10 @@ export function AppearanceSettingsSection(props: {
                 })}
               >
                 <span className="font-semibold text-slate-700">{t(`settings.themePreset.${preset.id}`)}</span>
-                <span className="h-3 w-full rounded-full" style={{ backgroundColor: preset.accent }} />
+                <span
+                  className="h-3 w-full rounded-full"
+                  {...cspStyle({ backgroundColor: preset.accent })}
+                />
               </button>
             );
           })}

@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import type { KnowledgeItem } from "../../../shared/types/app";
+import { cspStyle } from "../../../shared/ui/cspStyle";
 
 type TranslationFn = (key: any) => string;
 
@@ -30,10 +31,10 @@ export function KnowledgeEntryMenu(props: {
   return createPortal(
     <div
       className="app-material-floating fixed z-[280] min-w-44 overflow-hidden rounded-md py-1"
-      style={{
+      {...cspStyle({
         left: Math.max(8, Math.min(x, window.innerWidth - 190)),
         top: Math.max(8, Math.min(y, window.innerHeight - 132)),
-      }}
+      })}
       role="menu"
       onContextMenu={(event) => event.preventDefault()}
     >

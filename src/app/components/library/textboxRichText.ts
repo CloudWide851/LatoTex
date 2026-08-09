@@ -1,3 +1,9 @@
+import {
+  applyPersistedCspStyle,
+  CSP_PERSISTED_STYLE_ATTRIBUTE,
+  readPersistedCspStyle,
+} from "../../../shared/ui/cspStyle";
+
 const ALLOWED_TAGS = new Set([
   "BR",
   "DIV",
@@ -22,6 +28,11 @@ const ALLOWED_STYLE_PROPS = new Set([
   "font-style",
   "text-decoration",
   "text-align",
+]);
+
+const ALLOWED_STYLE_ATTRIBUTES = new Set([
+  "style",
+  CSP_PERSISTED_STYLE_ATTRIBUTE,
 ]);
 
 type RichTextInlineStylePatch = {
@@ -66,6 +77,17 @@ function sanitizeStyleValue(styleText: string): string {
   return safe.join("; ");
 }
 
+function styleEntries(styleText: string): Array<readonly [string, string]> {
+  const sanitized = sanitizeStyleValue(styleText);
+  if (!sanitized) {
+    return [];
+  }
+  return sanitized.split(";").map((declaration) => {
+    const [rawKey, ...rest] = declaration.split(":");
+    return [rawKey.trim().toLowerCase(), rest.join(":").trim()] as const;
+  });
+}
+
 function sanitizeElementTree(node: HTMLElement) {
   const children = Array.from(node.children);
   for (const child of children) {
@@ -79,17 +101,20 @@ function sanitizeElementTree(node: HTMLElement) {
     }
     const attrs = Array.from(child.attributes);
     for (const attr of attrs) {
-      if (attr.name.toLowerCase() !== "style") {
+      if (!ALLOWED_STYLE_ATTRIBUTES.has(attr.name.toLowerCase())) {
         child.removeAttribute(attr.name);
       }
     }
     if (child.hasAttribute("style")) {
-      const sanitized = sanitizeStyleValue(child.getAttribute("style") ?? "");
-      if (sanitized) {
-        child.setAttribute("style", sanitized);
-      } else {
-        child.removeAttribute("style");
-      }
+      const entries = styleEntries(child.getAttribute("style") ?? "");
+      applyPersistedCspStyle(child as HTMLElement, entries);
+      child.removeAttribute("style");
+    } else if (child.hasAttribute(CSP_PERSISTED_STYLE_ATTRIBUTE)) {
+      const entries = readPersistedCspStyle(child as HTMLElement).filter(
+        ([property, value]) => ALLOWED_STYLE_PROPS.has(property)
+          && !/url\s*\(|expression\s*\(|javascript:/i.test(value),
+      );
+      applyPersistedCspStyle(child as HTMLElement, entries);
     }
     sanitizeElementTree(child as HTMLElement);
   }
@@ -150,24 +175,26 @@ function selectionBelongsToRoot(root: HTMLElement, range: Range): boolean {
 }
 
 function applyInlineStyle(element: HTMLElement, patch: RichTextInlineStylePatch) {
+  const entries = new Map(readPersistedCspStyle(element));
   if (patch.fontSize) {
-    element.style.fontSize = `${patch.fontSize}px`;
+    entries.set("font-size", `${patch.fontSize}px`);
   }
   if (patch.fontFamily) {
-    element.style.fontFamily = patch.fontFamily;
+    entries.set("font-family", patch.fontFamily);
   }
   if (patch.textColor) {
-    element.style.color = patch.textColor;
+    entries.set("color", patch.textColor);
   }
   if (patch.fontWeight) {
-    element.style.fontWeight = patch.fontWeight;
+    entries.set("font-weight", patch.fontWeight);
   }
   if (patch.fontStyle) {
-    element.style.fontStyle = patch.fontStyle;
+    entries.set("font-style", patch.fontStyle);
   }
   if (patch.textDecoration) {
-    element.style.textDecoration = patch.textDecoration;
+    entries.set("text-decoration", patch.textDecoration);
   }
+  applyPersistedCspStyle(element, Array.from(entries.entries()));
 }
 
 function wrapLooseTextNodes(root: HTMLElement, patch: RichTextInlineStylePatch) {

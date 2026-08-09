@@ -5,6 +5,7 @@ import { reportRootBootError, RootBootErrorBoundary } from "./app/components/Roo
 import { startTauriSmokeRunner } from "./app/smoke/tauriSmokeRunner";
 import { writeTauriSmokeProgress } from "./app/smoke/tauriSmokeProgress";
 import { I18nProvider, resolveLocale } from "./i18n";
+import { installCspStyleRegistry } from "./shared/ui/cspStyle";
 import "./index.css";
 import "./styles/control-system.css";
 
@@ -75,6 +76,7 @@ if (typeof window !== "undefined") {
 try {
   writeTauriSmokeProgress("frontend.entry", "ok", { href: typeof window === "undefined" ? "" : window.location.href });
   prepareBootSmokeScenario();
+  installCspStyleRegistry();
   const rootElement = document.getElementById("root");
   if (!rootElement) {
     throw new Error("root element is missing");

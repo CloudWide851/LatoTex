@@ -60,6 +60,9 @@ fn resolve_public_https_target(raw: &str) -> Result<(reqwest::Url, Vec<SocketAdd
     {
         return Err("network.target.invalid".to_string());
     }
+    if url.port().is_some_and(|port| port != 443) {
+        return Err("network.target.port_invalid".to_string());
+    }
     url.set_fragment(None);
     let host = url
         .host_str()
@@ -554,5 +557,9 @@ mod tests {
         assert!(validate_public_https_url("https://[::1]/paper").is_err());
         assert!(validate_public_https_url("http://example.org/paper").is_err());
         assert!(validate_public_https_url("https://user:pass@example.org/paper").is_err());
+        assert_eq!(
+            validate_public_https_url("https://example.org:8443/paper").unwrap_err(),
+            "network.target.port_invalid"
+        );
     }
 }

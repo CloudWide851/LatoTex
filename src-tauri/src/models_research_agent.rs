@@ -81,6 +81,25 @@ pub struct ResearchProjectInput {
     pub project_id: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchNetworkPolicy {
+    pub project_id: String,
+    pub academic_metadata_enabled: bool,
+    pub verified_oa_download_enabled: bool,
+    pub external_model_evidence_excerpt_enabled: bool,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchNetworkPolicyUpdateInput {
+    pub project_id: String,
+    pub academic_metadata_enabled: bool,
+    pub verified_oa_download_enabled: bool,
+    pub external_model_evidence_excerpt_enabled: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResearchTaskCreateInput {

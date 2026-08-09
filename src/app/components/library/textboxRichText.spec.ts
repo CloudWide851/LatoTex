@@ -5,7 +5,9 @@ import {
   applyStyleToRichTextSelection,
   captureRichTextSelection,
   restoreRichTextSelection,
+  sanitizeRichTextHtml,
 } from "./textboxRichText";
+import { readPersistedCspStyle } from "../../../shared/ui/cspStyle";
 
 describe("textboxRichText selection helpers", () => {
   beforeEach(() => {
@@ -45,8 +47,13 @@ describe("textboxRichText selection helpers", () => {
     });
     expect(formatted).not.toBeNull();
     expect(editor.innerHTML).toContain("<span");
-    expect(editor.innerHTML).toContain("font-weight: bold");
-    expect(editor.innerHTML).toContain("color: rgb(29, 78, 216)");
+    const wrapper = editor.querySelector("span");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.hasAttribute("style")).toBe(false);
+    expect(new Map(readPersistedCspStyle(wrapper as HTMLElement))).toEqual(new Map([
+      ["color", "#1d4ed8"],
+      ["font-weight", "bold"],
+    ]));
   });
 
   it("ignores collapsed selections", () => {
@@ -65,5 +72,22 @@ describe("textboxRichText selection helpers", () => {
 
     expect(captureRichTextSelection(editor)).toBeNull();
     expect(applyStyleToRichTextSelection(editor, { fontWeight: "bold" })).toBeNull();
+  });
+
+  it("migrates legacy inline formatting and removes active content", () => {
+    const sanitized = sanitizeRichTextHtml(
+      '<span data-latotex-style="borrowed-rule" style="font-size: 18px; color: #1d4ed8; background: url(javascript:alert(1))" onclick="alert(1)">Safe</span><script>alert(2)</script>',
+    );
+    const root = document.createElement("div");
+    root.innerHTML = sanitized;
+    const span = root.querySelector("span") as HTMLElement;
+    expect(span.hasAttribute("style")).toBe(false);
+    expect(span.hasAttribute("onclick")).toBe(false);
+    expect(span.getAttribute("data-latotex-style")).not.toBe("borrowed-rule");
+    expect(root.querySelector("script")).toBeNull();
+    expect(new Map(readPersistedCspStyle(span))).toEqual(new Map([
+      ["color", "#1d4ed8"],
+      ["font-size", "18px"],
+    ]));
   });
 });

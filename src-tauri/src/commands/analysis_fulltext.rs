@@ -1,14 +1,11 @@
 use super::ReferenceEvidence;
 use crate::outbound_http::{build_public_blocking_client, OutboundProxyMode};
-use regex::Regex;
 use std::io::Read;
 use std::path::Path;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 const FULLTEXT_RESULT_LIMIT: usize = 8;
 const FULLTEXT_PARALLELISM: usize = 3;
-const FULLTEXT_HTML_BODY_LIMIT: u64 = 8 * 1024 * 1024;
 const FULLTEXT_PDF_BODY_LIMIT: u64 = 64 * 1024 * 1024;
 const FULLTEXT_EXCERPT_LIMIT: usize = 16_000;
 
@@ -20,33 +17,23 @@ pub(super) struct FulltextRuntimeContext<'a> {
     pub project_root: &'a Path,
 }
 
-fn html_text(raw: &str) -> String {
-    static SCRIPT_STYLE: OnceLock<Regex> = OnceLock::new();
-    static TAGS: OnceLock<Regex> = OnceLock::new();
-    let without_scripts = SCRIPT_STYLE
-        .get_or_init(|| {
-            Regex::new(r"(?is)<(?:script|style|noscript)[^>]*>.*?</(?:script|style|noscript)>")
-                .unwrap()
-        })
-        .replace_all(raw, " ");
-    let without_tags = TAGS
-        .get_or_init(|| Regex::new(r"(?is)<[^>]+>").unwrap())
-        .replace_all(&without_scripts, " ");
-    without_tags
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+fn has_pdf_magic(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"%PDF-")
+}
+
+fn verified_oa_pdf_candidate(evidence: &ReferenceEvidence) -> Option<&str> {
+    (evidence.open_access == Some(true))
+        .then(|| evidence.pdf_url.as_deref())
+        .flatten()
+        .map(str::trim)
+        .filter(|value| value.starts_with("https://"))
 }
 
 fn fetch_fulltext(
     candidate: &str,
     pdf_runtime: Option<&crate::storage::ReadyPaperExtractRuntime>,
 ) -> Option<(String, String)> {
+    let pdf_runtime = pdf_runtime?;
     let Ok((client, url, _)) = build_public_blocking_client(
         candidate,
         &OutboundProxyMode::System,
@@ -56,10 +43,7 @@ fn fetch_fulltext(
     };
     let Ok(response) = client
         .get(url.as_str())
-        .header(
-            "Accept",
-            "text/html, application/xhtml+xml, application/pdf",
-        )
+        .header("Accept", "application/pdf")
         .header("User-Agent", "LatoTex/0.1 (research fulltext)")
         .send()
     else {
@@ -74,41 +58,28 @@ fn fetch_fulltext(
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default()
         .to_ascii_lowercase();
-    let is_pdf = content_type.starts_with("application/pdf");
-    let is_html =
-        content_type.starts_with("text/html") || content_type.starts_with("application/xhtml+xml");
-    let body_limit = if is_pdf {
-        if pdf_runtime.is_none() {
-            return None;
-        }
-        FULLTEXT_PDF_BODY_LIMIT
-    } else if is_html {
-        FULLTEXT_HTML_BODY_LIMIT
-    } else {
+    if !content_type.starts_with("application/pdf") {
         return None;
-    };
+    }
     if response
         .content_length()
-        .is_some_and(|size| size > body_limit)
+        .is_some_and(|size| size > FULLTEXT_PDF_BODY_LIMIT)
     {
         return None;
     }
     let mut body = Vec::new();
     if response
-        .take(body_limit + 1)
+        .take(FULLTEXT_PDF_BODY_LIMIT + 1)
         .read_to_end(&mut body)
         .is_err()
-        || body.len() as u64 > body_limit
+        || body.len() as u64 > FULLTEXT_PDF_BODY_LIMIT
+        || !has_pdf_magic(&body)
     {
         return None;
     }
-    let text = if is_pdf {
-        crate::storage::extract_downloaded_pdf_text(pdf_runtime?, &body)
-            .ok()
-            .flatten()?
-    } else {
-        html_text(&String::from_utf8_lossy(&body))
-    };
+    let text = crate::storage::extract_downloaded_pdf_text(pdf_runtime, &body)
+        .ok()
+        .flatten()?;
     let normalized = text.to_ascii_lowercase();
     if text.chars().count() < 600
         || (normalized.contains("sign in") && normalized.contains("subscribe"))
@@ -122,25 +93,10 @@ fn enrich_one(
     mut evidence: ReferenceEvidence,
     pdf_runtime: Option<&crate::storage::ReadyPaperExtractRuntime>,
 ) -> ReferenceEvidence {
-    let mut candidates = Vec::<String>::new();
-    if evidence.open_access != Some(false) {
-        if let Some(pdf_url) = evidence
-            .pdf_url
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| value.starts_with("https://"))
-        {
-            candidates.push(pdf_url.to_string());
-        }
-    }
-    let landing = evidence.landing_url.trim();
-    if landing.starts_with("https://") && !candidates.iter().any(|item| item == landing) {
-        candidates.push(landing.to_string());
-    }
-    let Some((text, source_url)) = candidates
-        .iter()
-        .find_map(|candidate| fetch_fulltext(candidate, pdf_runtime))
-    else {
+    let Some(candidate) = verified_oa_pdf_candidate(&evidence) else {
+        return evidence;
+    };
+    let Some((text, source_url)) = fetch_fulltext(candidate, pdf_runtime) else {
         return evidence;
     };
     let excerpt = text
@@ -194,14 +150,55 @@ pub(super) fn enrich_academic_fulltext(
 
 #[cfg(test)]
 mod tests {
-    use super::html_text;
+    use super::{has_pdf_magic, verified_oa_pdf_candidate};
+    use crate::commands::analysis::ReferenceEvidence;
+
+    fn evidence(open_access: Option<bool>, pdf_url: Option<&str>) -> ReferenceEvidence {
+        ReferenceEvidence {
+            stable_id: "paper".to_string(),
+            title: "Paper".to_string(),
+            authors: Vec::new(),
+            year: None,
+            venue: None,
+            doi: None,
+            arxiv_id: None,
+            open_access,
+            pdf_url: pdf_url.map(str::to_string),
+            landing_url: "https://publisher.example/paywalled".to_string(),
+            citation_count: None,
+            abstract_text: None,
+            source: "fixture".to_string(),
+            evidence_level: "metadata".to_string(),
+            provenance: vec!["fixture".to_string()],
+            original_source_url: "https://publisher.example/paywalled".to_string(),
+            rrf_score: 0.0,
+            url: "https://publisher.example/paywalled".to_string(),
+            snippet: String::new(),
+        }
+    }
 
     #[test]
-    fn html_extraction_drops_scripts_and_keeps_visible_text() {
-        let text = html_text(
-            "<html><style>.hidden{}</style><script>secret()</script><body>Evidence &amp; result</body></html>",
-        );
-        assert_eq!(text, "Evidence & result");
-        assert!(!text.contains("secret"));
+    fn fulltext_requires_pdf_magic() {
+        assert!(has_pdf_magic(b"%PDF-1.7\n"));
+        assert!(!has_pdf_magic(b"<html>not a paper</html>"));
+    }
+
+    #[test]
+    fn fulltext_candidate_requires_explicit_open_access_https_pdf() {
+        assert!(verified_oa_pdf_candidate(&evidence(
+            Some(true),
+            Some("https://repository.example/paper.pdf"),
+        ))
+        .is_some());
+        assert!(verified_oa_pdf_candidate(&evidence(
+            None,
+            Some("https://repository.example/paper.pdf"),
+        ))
+        .is_none());
+        assert!(verified_oa_pdf_candidate(&evidence(
+            Some(true),
+            Some("http://repository.example/paper.pdf"),
+        ))
+        .is_none());
     }
 }

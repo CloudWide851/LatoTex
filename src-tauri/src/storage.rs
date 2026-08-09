@@ -50,6 +50,7 @@ include!("storage/agent_cache_time.rs");
 include!("storage/research_store.rs");
 include!("storage/research_store_schema.rs");
 include!("storage/research_store_operations.rs");
+include!("storage/research_network_policy.rs");
 include!("storage/research_resource_locks.rs");
 include!("storage/research_run_leases.rs");
 include!("storage/research_plan_runs.rs");

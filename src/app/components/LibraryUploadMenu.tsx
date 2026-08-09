@@ -20,6 +20,7 @@ import {
 } from "../../components/ui/dropdown";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
+import { cspStyle } from "../../shared/ui/cspStyle";
 
 type TranslationFn = (key: any) => string;
 type FloatingPanelKind = "menu" | "link";
@@ -127,7 +128,7 @@ export function LibraryUploadMenu(props: {
       <div
         ref={panelRef}
         className={dropdownSurfaceClassName(`fixed z-[520] ${className ?? "overflow-y-auto overflow-x-hidden"}`)}
-        style={panelStyle}
+        {...cspStyle(panelStyle)}
       >
         {content}
       </div>
