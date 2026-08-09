@@ -16,4 +16,11 @@ describe("analysis drop refs", () => {
     const output = resolveDroppedPromptRefs(["docs/spec.pdf"], ["data/input.csv"], { allowUnmatched: false });
     expect(output).toEqual([]);
   });
+
+  it("requires a normalized full-path match when unmatched fallback is disabled", () => {
+    const candidates = ["papers/spec.pdf", "docs/other.tex"];
+    expect(resolveDroppedPromptRefs(["spec.pdf"], candidates, { allowUnmatched: false })).toEqual([]);
+    expect(resolveDroppedPromptRefs([".\\papers\\spec.pdf"], candidates, { allowUnmatched: false }))
+      .toEqual(["papers/spec.pdf"]);
+  });
 });

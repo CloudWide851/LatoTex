@@ -13,17 +13,28 @@ export type AnalysisSourceSnapshot = {
   numericSeries?: { label: string; value: number }[];
 };
 
-const DATA_EXTENSIONS = new Set([
+const STRUCTURED_DATA_EXTENSIONS = new Set([
   "csv",
   "tsv",
   "xlsx",
   "xlsm",
   "json",
   "jsonl",
-  "txt",
-  "md",
-  "tex",
 ]);
+
+const CONTEXT_EXTENSIONS = new Set([
+  "tex", "bib", "cls", "sty", "bst", "bbx", "cbx", "lbx", "tikz", "pgf",
+  "md", "markdown", "txt", "yaml", "yml", "toml", "ini", "cfg", "conf", "pdf",
+]);
+
+const CONTEXT_DOTFILES = new Set([".editorconfig", ".gitignore", ".gitattributes"]);
+
+const CREDENTIAL_EXTENSIONS = new Set(["pem", "key", "p12", "pfx", "cer", "crt"]);
+
+function fileName(path: string): string {
+  const normalized = path.trim().replace(/\\/g, "/");
+  return normalized.split("/").pop()?.toLowerCase() ?? "";
+}
 
 function ext(path: string): string {
   const idx = path.lastIndexOf(".");
@@ -34,11 +45,53 @@ function ext(path: string): string {
 }
 
 export function isCandidateDataFile(path: string): boolean {
-  return DATA_EXTENSIONS.has(ext(path));
+  const name = fileName(path);
+  if (!name || isDeniedAnalysisReferenceFile(path)) {
+    return false;
+  }
+  return STRUCTURED_DATA_EXTENSIONS.has(ext(name));
 }
 
 export function listCandidateDataFiles(paths: string[]): string[] {
   return paths.filter((path) => isCandidateDataFile(path)).sort((a, b) => a.localeCompare(b));
+}
+
+export function isAnalysisContextFile(path: string): boolean {
+  const name = fileName(path);
+  if (!name || isDeniedAnalysisReferenceFile(path)) {
+    return false;
+  }
+  return CONTEXT_DOTFILES.has(name) || CONTEXT_EXTENSIONS.has(ext(name));
+}
+
+export function isAnalysisReferenceFile(path: string): boolean {
+  if (isDeniedAnalysisReferenceFile(path)) {
+    return false;
+  }
+  return isCandidateDataFile(path) || isAnalysisContextFile(path);
+}
+
+export function isAnalysisCredentialFile(path: string): boolean {
+  const name = fileName(path);
+  const extension = ext(name);
+  return name === ".env"
+    || name.startsWith(".env.")
+    || name === "credentials.json"
+    || name === "id_rsa"
+    || name === "id_ed25519"
+    || name.startsWith("secret.")
+    || name.startsWith("secrets.")
+    || CREDENTIAL_EXTENSIONS.has(extension);
+}
+
+export function isDeniedAnalysisReferenceFile(path: string): boolean {
+  const name = fileName(path);
+  return isAnalysisCredentialFile(path)
+    || (name.startsWith(".") && !CONTEXT_DOTFILES.has(name));
+}
+
+export function listAnalysisReferenceFiles(paths: string[]): string[] {
+  return paths.filter(isAnalysisReferenceFile).sort((a, b) => a.localeCompare(b));
 }
 
 function toSeriesFromRows(rows: string[][]): { label: string; value: number }[] {

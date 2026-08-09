@@ -31,6 +31,7 @@ type TranslationFn = (key: any) => string;
 
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
+  projectId?: string | null;
   tree: ResourceNode[];
   selectedPath: string | null;
   dirtyByPath?: Record<string, boolean>;
@@ -57,6 +58,7 @@ export function ExplorerTree(props: {
 }) {
   const {
     mode = "workspace",
+    projectId,
     tree,
     selectedPath,
     dirtyByPath,
@@ -161,6 +163,7 @@ export function ExplorerTree(props: {
   const { dragSourcePath, dragPreview, dropTargetPath, suppressClickRef, handlePointerDragStart } = useExplorerPointerDrag({
     rootRef,
     onMove: onAction ? handleMove : undefined,
+    projectId: mode === "workspace" ? projectId : undefined,
     expandedMap,
     onExpandDirectory: handleDirectoryExpand,
   });
@@ -339,8 +342,7 @@ export function ExplorerTree(props: {
           data-explorer-drop-directory={isDirectory ? "true" : undefined}
           data-path={node.relativePath}
           onDragStart={(event) => event.preventDefault()}
-          onPointerDown={(event) => handlePointerDragStart(event, node.relativePath, node.name)}
-          onMouseDown={(event) => handlePointerDragStart(event, node.relativePath, node.name)}
+          onPointerDown={(event) => handlePointerDragStart(event, node.relativePath, node.name, node.kind)}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();

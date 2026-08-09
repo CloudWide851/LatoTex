@@ -50,6 +50,7 @@ describe("WorkspacePreviewPanel", () => {
           canZoomPreview={false}
           previewZoom={1}
           compileErrorLine={null}
+          compileBusy={false}
           compileInstallProgress={null}
           onEditorChange={() => undefined}
           onOpenLogs={() => undefined}
@@ -72,6 +73,57 @@ describe("WorkspacePreviewPanel", () => {
     await act(async () => {
       root.unmount();
     });
+    container.remove();
+  });
+
+  it("prevents exporting a stale PDF while compilation is active", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <WorkspacePreviewPanel
+          activeProjectId="project-1"
+          selectedFile="main.tex"
+          selectedIsCsv={false}
+          selectedIsMarkdown={false}
+          selectedIsHtml={false}
+          selectedIsImage={false}
+          selectedIsSvg={false}
+          selectedIsTabular={false}
+          editorContent=""
+          compiledPdfUrl="blob:previous-compile"
+          previewMode="pdf"
+          previewPdfUrl="blob:previous-compile"
+          previewPdfFallbackRelativePath={null}
+          imagePreviewUrl={null}
+          canZoomPreview
+          previewZoom={1}
+          compileErrorLine={null}
+          compileBusy
+          compileInstallProgress={null}
+          onEditorChange={() => undefined}
+          onOpenLogs={() => undefined}
+          onExportPdf={() => undefined}
+          onZoomIn={() => undefined}
+          onZoomOut={() => undefined}
+          onZoomReset={() => undefined}
+          onPreviewZoomChange={() => undefined}
+          previewFocusRequest={null}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const exportButton = container.querySelector<HTMLButtonElement>(
+      "button[aria-label='preview.savePdf (shortcut.exportPdf)']",
+    );
+    expect(exportButton?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>("button[aria-label='preview.zoomIn']")?.disabled)
+      .toBe(false);
+
+    await act(async () => root.unmount());
     container.remove();
   });
 });

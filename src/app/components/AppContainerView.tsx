@@ -89,6 +89,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     previewOverridePath = null,
     compileErrorLine,
     compileDiagnostics,
+    compileBusy,
     compileInstallProgress = null,
     agentCollapsed,
     agentPhase,
@@ -363,6 +364,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 previewOverridePath={previewOverridePath}
                 compileErrorLine={compileErrorLine}
                 compileDiagnostics={compileDiagnostics}
+                compileBusy={compileBusy}
                 compileInstallProgress={compileInstallProgress}
                 agentCollapsed={agentCollapsed}
                 agentPhase={agentPhase}

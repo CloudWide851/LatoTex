@@ -52,6 +52,7 @@ function ensureMonacoOverflowWidgetRoot(): HTMLElement | null {
 export function LatexWorkspaceEditorPanel(props: {
   activeProjectId: string | null;
   busy: boolean;
+  compileBusy: boolean;
   suspended: boolean;
   selectedFile: string | null;
   selectedIsDraw: boolean;
@@ -144,6 +145,7 @@ export function LatexWorkspaceEditorPanel(props: {
   const {
     activeProjectId,
     busy,
+    compileBusy,
     suspended,
     selectedFile,
     selectedIsDraw,

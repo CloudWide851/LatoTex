@@ -1,5 +1,10 @@
 import { ChevronDown, ChevronUp, Download, FolderOpen, Plus } from "lucide-react";
-import { useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
+import {
+  WORKSPACE_REFERENCE_DROP_EVENT,
+  WORKSPACE_REFERENCE_TARGET_ATTR,
+  isWorkspaceReferenceDropDetail,
+} from "../../../shared/events/workspaceReferenceDrop";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
 import { AnalysisLiveRail } from "./AnalysisLiveRail";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
@@ -32,6 +37,7 @@ function parseDroppedPaths(event: DragEvent): string[] {
 }
 
 export function AnalysisWorkspace(props: {
+  projectId: string | null;
   busy: boolean;
   prompt: string;
   canRun: boolean;
@@ -66,6 +72,7 @@ export function AnalysisWorkspace(props: {
   t: TranslationFn;
 }) {
   const {
+    projectId,
     busy,
     prompt,
     canRun,
@@ -101,6 +108,18 @@ export function AnalysisWorkspace(props: {
   } = props;
   const [dragActive, setDragActive] = useState(false);
   const [collapsedRunHeaders, setCollapsedRunHeaders] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const handleReferenceDrop = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!projectId || !isWorkspaceReferenceDropDetail(detail) || detail.projectId !== projectId) {
+        return;
+      }
+      onDropPaths(detail.paths);
+    };
+    window.addEventListener(WORKSPACE_REFERENCE_DROP_EVENT, handleReferenceDrop);
+    return () => window.removeEventListener(WORKSPACE_REFERENCE_DROP_EVENT, handleReferenceDrop);
+  }, [onDropPaths, projectId]);
   const hasLiveStream = running || Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
   const persistedDraftOutput = activeRun?.draftOutputText?.trim() ?? "";
@@ -124,7 +143,10 @@ export function AnalysisWorkspace(props: {
   };
 
   return (
-    <div className="app-material-panel relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border motion-shell-stage motion-panel-glow">
+    <div
+      {...{ [WORKSPACE_REFERENCE_TARGET_ATTR]: "analysis" }}
+      className="app-material-panel relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border motion-shell-stage motion-panel-glow"
+    >
       <AnalysisTaskTabs
         tasks={tasks}
         activeTaskId={activeTaskId}

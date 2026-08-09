@@ -8,6 +8,7 @@ pub mod agent_runtime_update;
 pub mod agent_workflows;
 mod agent_workflows_context;
 pub mod analysis;
+pub mod analysis_context;
 pub mod channels_dingtalk;
 pub mod channels_email;
 pub mod channels_telegram;

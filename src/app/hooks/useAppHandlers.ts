@@ -312,6 +312,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
   }, [activeProjectId, markPathSaved, refreshGitWorkspace, selectedFile, setBusy, setEditorContent, setToast, t]);
   const {
+    compileBusy,
     runCompilePassForAgent,
     handleCompile,
     handleExportCompiledPdf,
@@ -542,6 +543,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     t,
   });
   return {
+    compileBusy,
     handleWindowControl,
     handleWindowCloseDecision,
     handleInitProjectFromFolder,
