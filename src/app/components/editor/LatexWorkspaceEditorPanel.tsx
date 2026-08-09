@@ -360,6 +360,7 @@ export function LatexWorkspaceEditorPanel(props: {
           />
           <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
             <LazyWorkspaceMonacoEditor
+              projectId={activeProjectId ?? ""}
               path={selectedFile ?? undefined}
               language={editorLanguage}
               theme={editorTheme}
@@ -468,6 +469,7 @@ export function LatexWorkspaceEditorPanel(props: {
           <LatexEditorToolbarActions
             activeProjectId={activeProjectId}
             busy={busy}
+            compileBusy={compileBusy}
             selectedFile={selectedFile}
             selectedIsDraw={selectedIsDraw}
             selectedFileWriteLocked={Boolean(selectedFileWriteLock)}

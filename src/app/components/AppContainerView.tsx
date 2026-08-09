@@ -10,6 +10,7 @@ import { runtimeClearVolatileCacheAndRestart } from "../../shared/api/runtime";
 import { cspStyle } from "../../shared/ui/cspStyle";
 import { clearRecoverableClientState } from "../utils/recoverableClientState";
 import type { AppContainerViewProps } from "./appContainerViewTypes";
+import { buildWorkspaceOnboardingProps } from "./appContainerWorkspaceProps";
 import { ResearchAgentGlobalStatusHost } from "./agent/ResearchAgentGlobalStatusHost";
 export { createAppContainerViewBridge } from "./appContainerViewBridge";
 
@@ -41,9 +42,6 @@ export function AppContainerView(props: AppContainerViewProps) {
     setProjectSearchResults,
     setProjectSearchSearched,
     handleInitProjectFromFolderWithGuard,
-    handleCreateSampleProject,
-    handleOnboardingDismiss,
-    handlePdfViewed,
     handleWindowControlWithGuard,
     shareSession,
     sharePassword,
@@ -433,9 +431,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 onAgentRejectProposal={handleRejectAgentProposal}
                 onAgentPendingActionResolve={handleResolveAgentPendingAction}
                 onOpenFolder={handleInitProjectFromFolderWithGuard}
-                onCreateSample={handleCreateSampleProject}
-                onOnboardingDismiss={handleOnboardingDismiss}
-                onPdfViewed={handlePdfViewed}
+                {...buildWorkspaceOnboardingProps(props)}
                 onSaveFile={handleSaveActiveFile}
                 onWriteSelectedFileContent={handleWriteSelectedFileContent}
                 onCompile={handleCompile}

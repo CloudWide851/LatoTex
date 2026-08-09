@@ -3,6 +3,9 @@ import type { AppSettings } from "../../shared/types/app";
 import {
   applyOnboardingEventToSettings,
   normalizeOnboardingState,
+  normalizeResearchDomainByProject,
+  normalizeResearchGoalByProject,
+  normalizeResearchPrivacyReviewedByProject,
   reduceOnboarding,
   startOnboarding,
 } from "./onboardingState";
@@ -21,37 +24,39 @@ describe("onboarding state", () => {
     expect(reduceOnboarding(undefined, {
       type: "record",
       projectId: "existing",
-      step: "open",
+      step: "goal",
     })).toBeUndefined();
   });
 
-  it("records real steps once and completes only after all three", () => {
+  it("records real steps once and completes only after all five", () => {
     const started = startOnboarding("sample");
-    const compiled = reduceOnboarding(started, {
+    const domain = reduceOnboarding(started, {
       type: "record",
       projectId: "sample",
-      step: "compile",
+      step: "domain_privacy",
     });
-    const opened = reduceOnboarding(compiled, {
+    const goal = reduceOnboarding(domain, {
       type: "record",
       projectId: "sample",
-      step: "open",
+      step: "goal",
     });
-    const completed = reduceOnboarding(opened, {
+    const model = reduceOnboarding(goal, {
       type: "record",
       projectId: "sample",
-      step: "view",
+      step: "model",
     });
+    const question = reduceOnboarding(model, { type: "record", projectId: "sample", step: "question" });
+    const completed = reduceOnboarding(question, { type: "record", projectId: "sample", step: "plan_review" });
 
-    expect(opened?.completedSteps).toEqual(["open", "compile"]);
+    expect(goal?.completedSteps).toEqual(["goal", "domain_privacy"]);
     expect(completed).toMatchObject({
       status: "completed",
-      completedSteps: ["open", "compile", "view"],
+      completedSteps: ["goal", "domain_privacy", "model", "question", "plan_review"],
     });
     expect(reduceOnboarding(completed, {
       type: "record",
       projectId: "sample",
-      step: "view",
+      step: "plan_review",
     })).toBe(completed);
   });
 
@@ -60,7 +65,7 @@ describe("onboarding state", () => {
     expect(reduceOnboarding(started, {
       type: "record",
       projectId: "other",
-      step: "open",
+      step: "goal",
     })).toBe(started);
 
     const dismissed = reduceOnboarding(started, { type: "dismiss", projectId: "sample" });
@@ -79,5 +84,23 @@ describe("onboarding state", () => {
     expect(next.activeProjectId).toBe("sample");
     expect(normalizeOnboardingState(next.uiPrefs?.onboarding)).toEqual(startOnboarding("sample"));
     expect(normalizeOnboardingState({ version: 99, status: "active", completedSteps: [] })).toBeUndefined();
+  });
+
+  it("normalizes persisted research goals and domain values at the settings boundary", () => {
+    expect(normalizeResearchGoalByProject({
+      " sample ": "  Verify the claim  ",
+      blank: "  ",
+      invalid: 42,
+    })).toEqual({ sample: "Verify the claim" });
+    expect(normalizeResearchDomainByProject({
+      " sample ": "life_sciences",
+      invalid: "clinical",
+      empty: "",
+    })).toEqual({ sample: "life_sciences" });
+    expect(normalizeResearchPrivacyReviewedByProject({
+      " sample ": true,
+      falseValue: false,
+      invalid: "true",
+    })).toEqual({ sample: true });
   });
 });

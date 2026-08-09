@@ -16,6 +16,7 @@ function toolbarProps() {
   return {
     activeProjectId: "project-1",
     busy: false,
+    compileBusy: false,
     selectedFile: "main.tex",
     selectedIsDraw: false,
     selectedFileWriteLocked: true,
@@ -72,6 +73,12 @@ describe("LatexEditorToolbarActions", () => {
     });
     expect(props.onTerminalToggle).toHaveBeenCalledOnce();
     expect(props.onCompileClick).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      root.render(<LatexEditorToolbarActions {...props} compileBusy />);
+    });
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="terminal.title"]')?.disabled).toBe(false);
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label^="workspace.compile"]')?.disabled).toBe(true);
 
     await act(async () => {
       root.render(

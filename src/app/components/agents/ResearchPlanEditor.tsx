@@ -19,6 +19,7 @@ import {
   createEditableResearchPlanStep,
   type EditableResearchPlanStep,
 } from "./researchPlanDraft";
+import { ResearchCapabilityInputForm } from "./ResearchCapabilityInputForm";
 
 type TranslationFn = (key: MessageKey) => string;
 
@@ -153,16 +154,13 @@ export function ResearchPlanEditor(props: {
                     ) : null}
                   </div>
                 </div>
-                <label className="grid min-w-0 gap-1 text-[11px] text-[color:var(--app-muted)]">
-                  <span>{t("research.workbench.stepInput")}</span>
-                  <textarea
-                    className="app-material-inset min-h-20 w-full resize-y rounded-md border px-2 py-1.5 font-mono text-[11px] leading-4 text-[color:var(--app-fg)] outline-none focus:border-[color:var(--app-accent)]"
-                    value={step.inputText}
-                    disabled={busy}
-                    spellCheck={false}
-                    onChange={(event) => updateStep(index, { inputText: event.target.value })}
-                  />
-                </label>
+                <ResearchCapabilityInputForm
+                  descriptor={registry.find((item) => item.id === step.capability)}
+                  inputText={step.inputText}
+                  disabled={busy}
+                  onChange={(inputText) => updateStep(index, { inputText })}
+                  t={t}
+                />
                 <div className="flex items-center justify-end gap-1 lg:pt-5">
                   <label className="mr-1 inline-flex items-center gap-1.5 text-[11px] text-[color:var(--app-muted)]">
                     <input

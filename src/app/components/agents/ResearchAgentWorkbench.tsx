@@ -1,23 +1,16 @@
-import { Bot, CircleDot, Plus, RefreshCw, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, PanelLeft, PanelRight, Sparkles } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import {
   approveResearchPlan,
-  createResearchTask,
   executeResearchPlan,
   getResearchCapabilityRegistry,
   getResearchWorkspace,
   listResearchRuns,
+  RESEARCH_RUN_CHANGED_EVENT,
   saveResearchPlan,
-  startResearchPlanningWorkflow,
 } from "../../../shared/api/researchAgent";
-import {
-  loadChatStore,
-  newChatSession,
-  saveChatStoreAndWait,
-} from "../../hooks/chatSessionStore";
-import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import type {
   ResearchAgentRun,
   ResearchCapabilityDescriptor,
@@ -25,8 +18,17 @@ import type {
   ResearchTask,
   ResearchWorkspaceSnapshot,
 } from "../../../shared/types/researchAgent";
+import {
+  requestOpenChatSession,
+  setActiveChatSessionInStore,
+} from "../../hooks/chatSessionStore";
+import {
+  emitOnboardingMilestone,
+  ONBOARDING_PLAN_REVIEW_EVENT,
+} from "../../onboarding/onboardingState";
 import { ResearchEvidenceLedger } from "./ResearchEvidenceLedger";
 import { ResearchPlanEditor } from "./ResearchPlanEditor";
+import { ResearchTaskSidebar } from "./ResearchTaskSidebar";
 import {
   editableStepsFromPlan,
   parseEditableResearchPlanSteps,
@@ -34,6 +36,7 @@ import {
 } from "./researchPlanDraft";
 
 type TranslationFn = (key: MessageKey) => string;
+type ContextTab = "plan" | "evidence";
 
 function latestPlanForTask(plans: ResearchPlanVersion[], taskId: string) {
   return plans
@@ -49,21 +52,23 @@ function runForTask(runs: ResearchAgentRun[], taskId: string) {
 
 export function ResearchAgentWorkbench(props: {
   projectId: string | null;
+  conversation: ReactNode;
   t: TranslationFn;
 }) {
-  const { projectId, t } = props;
+  const { projectId, conversation, t } = props;
   const [snapshot, setSnapshot] = useState<ResearchWorkspaceSnapshot | null>(null);
   const [registry, setRegistry] = useState<ResearchCapabilityDescriptor[]>([]);
   const [runs, setRuns] = useState<ResearchAgentRun[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [selectedPlanVersion, setSelectedPlanVersion] = useState<number | null>(null);
   const [steps, setSteps] = useState<EditableResearchPlanStep[]>([]);
-  const [goalDraft, setGoalDraft] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [errorKey, setErrorKey] = useState<MessageKey | "">("");
   const [noticeKey, setNoticeKey] = useState<MessageKey | "">("");
-  const [planningReply, setPlanningReply] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(true);
+  const [contextOpen, setContextOpen] = useState(true);
+  const [contextTab, setContextTab] = useState<ContextTab>("plan");
   const [evidenceRefreshToken, setEvidenceRefreshToken] = useState(0);
   const actionRef = useRef("");
 
@@ -109,6 +114,34 @@ export function ResearchAgentWorkbench(props: {
       });
   }, [refresh]);
 
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined") return;
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      if (!detail?.projectId || detail.projectId === projectId) {
+        void refresh(selectedTaskId).catch(() => undefined);
+      }
+    };
+    window.addEventListener("latotex.chat.store.changed", onChanged);
+    window.addEventListener(RESEARCH_RUN_CHANGED_EVENT, onChanged);
+    return () => {
+      window.removeEventListener("latotex.chat.store.changed", onChanged);
+      window.removeEventListener(RESEARCH_RUN_CHANGED_EVENT, onChanged);
+    };
+  }, [projectId, refresh, selectedTaskId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTasksOpen(false);
+        setContextOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const selectedTask = useMemo(
     () => snapshot?.tasks.find((task) => task.id === selectedTaskId) ?? null,
     [selectedTaskId, snapshot?.tasks],
@@ -135,6 +168,12 @@ export function ResearchAgentWorkbench(props: {
     setDirty(false);
   }, [selectedPlan?.id, selectedPlan?.version]);
 
+  useEffect(() => {
+    if (projectId && contextOpen && contextTab === "plan" && selectedPlan) {
+      emitOnboardingMilestone(ONBOARDING_PLAN_REVIEW_EVENT, projectId);
+    }
+  }, [contextOpen, contextTab, projectId, selectedPlan]);
+
   const runAction = async (action: string, work: () => Promise<unknown>) => {
     if (actionRef.current) return;
     actionRef.current = action;
@@ -144,73 +183,21 @@ export function ResearchAgentWorkbench(props: {
     try {
       await work();
     } catch (error) {
-      const diagnostic = error instanceof Error ? error.message : String(error);
       setErrorKey(error instanceof SyntaxError
         ? "research.workbench.inputInvalid"
-        : diagnostic.includes("research.planning.model_unavailable")
-          ? "research.workbench.modelUnavailable"
-          : diagnostic.includes("research.planning.envelope_invalid")
-            ? "research.workbench.planInvalid"
-            : "research.workbench.error");
+        : "research.workbench.error");
     } finally {
       actionRef.current = "";
       setBusyAction("");
     }
   };
 
-  const createTaskAndPlan = () => {
-    const goal = goalDraft.trim();
-    if (!projectId || !goal) return;
-    void runAction("create", async () => {
-      const session = newChatSession(goal);
-      const task = await createResearchTask(projectId, goal, session.id);
-      const userMessage = {
-        id: `msg-${crypto.randomUUID()}`,
-        role: "user" as const,
-        text: goal,
-        createdAt: new Date().toISOString(),
-        runId: null,
-        taskId: task.id,
-      };
-      const loaded = loadChatStore(projectId);
-      await saveChatStoreAndWait(
-        projectId,
-        [{ ...session, messages: [userMessage] }, ...loaded.sessions],
-        session.id,
-      );
-      setGoalDraft("");
-      const accepted = await startResearchPlanningWorkflow({
-        projectId,
-        taskId: task.id,
-        prompt: goal,
-      });
-      const assistantMessage = await waitForRunOutputWithPolicy({
-        runId: accepted.runId,
-        totalTimeoutMs: 8 * 60_000,
-        inactivityTimeoutMs: 2 * 60_000,
-      });
-      const current = loadChatStore(projectId);
-      const sessions = current.sessions.map((item) => item.id === session.id
-        ? {
-            ...item,
-            updatedAt: new Date().toISOString(),
-            messages: [...item.messages, {
-              id: `msg-${crypto.randomUUID()}`,
-              role: "assistant" as const,
-              text: assistantMessage,
-              createdAt: new Date().toISOString(),
-              runId: accepted.runId,
-              taskId: task.id,
-            }],
-          }
-        : item);
-      await saveChatStoreAndWait(projectId, sessions, session.id);
-      setPlanningReply(assistantMessage);
-      const nextSnapshot = await refresh(task.id);
-      setNoticeKey(nextSnapshot?.plans.some((plan) => plan.taskId === task.id)
-        ? "research.workbench.planCreated"
-        : "research.workbench.clarificationReady");
-    });
+  const selectTask = (task: ResearchTask) => {
+    setSelectedTaskId(task.id);
+    if (projectId && task.chatSessionId) {
+      setActiveChatSessionInStore(projectId, task.chatSessionId);
+      requestOpenChatSession({ projectId, sessionId: task.chatSessionId });
+    }
   };
 
   const savePlan = () => {
@@ -269,113 +256,105 @@ export function ResearchAgentWorkbench(props: {
   const tasks = snapshot?.tasks ?? [];
   const busy = Boolean(busyAction);
   const activeRun = selectedTask ? runForTask(runs, selectedTask.id) : null;
+  const gridClass = tasksOpen && contextOpen
+    ? "xl:grid-cols-[15rem_minmax(28rem,1fr)_minmax(28rem,0.9fr)]"
+    : tasksOpen
+      ? "xl:grid-cols-[15rem_minmax(0,1fr)]"
+      : contextOpen
+        ? "xl:grid-cols-[minmax(28rem,1fr)_minmax(28rem,0.9fr)]"
+        : "xl:grid-cols-1";
 
   return (
-    <section className="grid h-full min-h-0 gap-2 overflow-hidden xl:grid-cols-[15rem_minmax(32rem,1fr)_20rem]" aria-label={t("research.workbench.title")}>
-      <aside className="app-material-panel flex min-h-0 flex-col overflow-hidden rounded-lg border">
-        <header className="border-b px-3 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold text-[color:var(--app-fg)]">{t("research.workbench.tasks")}</h2>
-            <Button size="icon" variant="ghost" disabled={busy} onClick={() => void runAction("refresh", () => refresh(selectedTaskId))} aria-label={t("research.workbench.refresh")}>
-              <RefreshCw className={`h-3.5 w-3.5 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
-          <p className="mt-1 text-[11px] leading-4 text-[color:var(--app-muted)]">{t("research.workbench.discussionHint")}</p>
-        </header>
-        <div className="library-scrollbar min-h-0 flex-1 overflow-auto p-1.5">
-          {tasks.length === 0 ? (
-            <p className="px-2 py-6 text-center text-[11px] text-[color:var(--app-muted)]">{t("research.workbench.taskEmpty")}</p>
-          ) : tasks.map((task) => {
-            const run = runForTask(runs, task.id);
-            return (
-              <button
-                key={task.id}
-                type="button"
-                className={`mb-1 w-full rounded-md border px-2.5 py-2 text-left transition ${selectedTaskId === task.id ? "border-[color:var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_9%,transparent)]" : "border-transparent hover:border-[color:var(--editor-widget-border)]"}`}
-                onClick={() => setSelectedTaskId(task.id)}
-              >
-                <span className="line-clamp-2 text-xs font-medium leading-4 text-[color:var(--app-fg)]">{task.goal}</span>
-                <span className="mt-1 flex items-center gap-1 text-[10px] text-[color:var(--app-muted)]">
-                  <CircleDot className="h-2.5 w-2.5" />
-                  {t(`research.workbench.taskStatus.${task.status}`)}
-                  {run ? <span>· {run.completedSteps}/{run.totalSteps}</span> : null}
-                </span>
-              </button>
-            );
-          })}
+    <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden" aria-label={t("research.workbench.title")}>
+      <header className="app-material-panel flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
+        <Button size="sm" variant={tasksOpen ? "secondary" : "ghost"} aria-expanded={tasksOpen} aria-controls="research-task-drawer" onClick={() => setTasksOpen((value) => !value)}>
+          <PanelLeft className="h-3.5 w-3.5" />
+          {t(tasksOpen ? "research.workbench.tasksClose" : "research.workbench.tasksOpen")}
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-xs font-semibold text-[color:var(--app-text)]">{t("research.workbench.conversationTitle")}</h2>
+          <p className="truncate text-[10px] text-[color:var(--app-muted)]">{t("research.workbench.conversationHint")}</p>
         </div>
-        <div className="border-t p-3">
-          <label className="grid gap-1 text-[11px] text-[color:var(--app-muted)]">
-            <span>{t("research.workbench.goalLabel")}</span>
-            <textarea
-              className="app-material-inset min-h-24 resize-none rounded-md border px-2 py-1.5 text-xs leading-5 text-[color:var(--app-fg)] outline-none focus:border-[color:var(--app-accent)]"
-              value={goalDraft}
-              disabled={busy}
-              onChange={(event) => setGoalDraft(event.target.value)}
-              placeholder={t("research.workbench.goalPlaceholder")}
-            />
-          </label>
-          <Button className="mt-2 w-full" size="sm" disabled={busy || !goalDraft.trim()} onClick={createTaskAndPlan}>
-            {tasks.length === 0 ? <Sparkles className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-            {t("research.workbench.createPlan")}
-          </Button>
-        </div>
-      </aside>
-
-      <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
-        {errorKey ? <div className="app-status-danger rounded-md border px-3 py-2 text-xs" role="alert">{t(errorKey)}</div> : null}
-        {noticeKey ? <div className="app-status-success rounded-md border px-3 py-2 text-xs" role="status">{t(noticeKey)}</div> : null}
-        {planningReply ? (
-          <div className="app-material-panel rounded-lg border px-4 py-3 text-sm leading-6 text-[color:var(--app-fg)]" role="status">
-            {planningReply}
-          </div>
+        {activeRun ? (
+          <span className="app-status-info rounded border px-2 py-1 text-[10px]" role="status">
+            {t("research.workbench.runProgress")} {activeRun.completedSteps}/{activeRun.totalSteps}
+          </span>
         ) : null}
-        {selectedTask ? (
-          <ResearchPlanEditor
-            goal={selectedTask.goal}
-            plan={selectedPlan}
-            versions={taskPlans}
-            registry={registry}
-            steps={steps}
+        <Button size="sm" variant={contextOpen ? "secondary" : "ghost"} aria-expanded={contextOpen} aria-controls="research-context-drawer" onClick={() => setContextOpen((value) => !value)}>
+          <PanelRight className="h-3.5 w-3.5" />
+          {t(contextOpen ? "research.workbench.contextClose" : "research.workbench.contextOpen")}
+        </Button>
+      </header>
+
+      {errorKey ? <div className="app-status-danger rounded-md border px-3 py-2 text-xs" role="alert">{t(errorKey)}</div> : null}
+      {noticeKey ? <div className="app-status-success rounded-md border px-3 py-2 text-xs" role="status">{t(noticeKey)}</div> : null}
+
+      <div className={`relative grid min-h-0 flex-1 gap-2 overflow-hidden ${gridClass}`}>
+        <aside id="research-task-drawer" className={`${tasksOpen ? "flex" : "hidden"} app-material-panel absolute inset-y-0 left-0 z-20 w-[min(19rem,88vw)] min-h-0 flex-col overflow-hidden rounded-lg border shadow-lg xl:static xl:w-auto xl:shadow-none`}>
+          <ResearchTaskSidebar
+            tasks={tasks}
+            runs={runs}
+            selectedTaskId={selectedTaskId}
             busy={busy}
-            dirty={dirty}
-            onStepsChange={(next) => {
-              setSteps(next);
-              setDirty(true);
-            }}
-            onSelectVersion={setSelectedPlanVersion}
-            onSave={savePlan}
-            onApprove={approvePlan}
-            onExecute={executePlan}
+            refreshing={busyAction === "refresh"}
+            onRefresh={() => void runAction("refresh", () => refresh(selectedTaskId))}
+            onSelectTask={selectTask}
             t={t}
           />
-        ) : (
-          <div className="app-material-panel grid min-h-0 flex-1 place-items-center rounded-lg border px-6 text-center">
-            <div className="max-w-md">
-              <Sparkles className="mx-auto h-6 w-6 text-[color:var(--app-accent)]" />
-              <h2 className="mt-3 text-sm font-semibold text-[color:var(--app-fg)]">{t("research.workbench.emptyTitle")}</h2>
-              <p className="mt-1 text-xs leading-5 text-[color:var(--app-muted)]">{t("research.workbench.emptyHint")}</p>
-            </div>
-          </div>
-        )}
-        {activeRun ? (
-          <div className="app-status-info rounded-md border px-3 py-2 text-[11px]" role="status">
-            {t("research.workbench.runProgress")} {activeRun.completedSteps}/{activeRun.totalSteps}
-            {activeRun.lastOperation ? ` · ${activeRun.lastOperation}` : ""}
-          </div>
-        ) : null}
-      </div>
+        </aside>
 
-      {selectedTask ? (
-        <ResearchEvidenceLedger
-          projectId={projectId}
-          taskId={selectedTask.id}
-          refreshToken={evidenceRefreshToken}
-          t={t}
-        />
-      ) : (
-        <aside className="app-material-panel hidden rounded-lg border xl:block" />
-      )}
+        <main className="min-h-0 min-w-0 overflow-hidden">{conversation}</main>
+
+        <aside id="research-context-drawer" className={`${contextOpen ? "flex" : "hidden"} app-material-panel absolute inset-y-0 right-0 z-30 w-[min(44rem,94vw)] min-h-0 flex-col overflow-hidden rounded-lg border shadow-lg xl:static xl:w-auto xl:shadow-none`}>
+          <div className="app-material-inset m-2 inline-flex self-start rounded-md border p-0.5" role="tablist" aria-label={t("research.workbench.contextOpen")}>
+            {(["plan", "evidence"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={contextTab === tab}
+                className={`rounded px-3 py-1.5 text-[11px] font-medium ${contextTab === tab ? "bg-[color:var(--app-accent)] text-white" : "text-[color:var(--app-muted)]"}`}
+                onClick={() => setContextTab(tab)}
+              >
+                {t(tab === "plan" ? "research.workbench.contextPlan" : "research.workbench.contextEvidence")}
+              </button>
+            ))}
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
+            {selectedTask ? (
+              contextTab === "plan" ? (
+                <ResearchPlanEditor
+                  goal={selectedTask.goal}
+                  plan={selectedPlan}
+                  versions={taskPlans}
+                  registry={registry}
+                  steps={steps}
+                  busy={busy}
+                  dirty={dirty}
+                  onStepsChange={(next) => {
+                    setSteps(next);
+                    setDirty(true);
+                  }}
+                  onSelectVersion={setSelectedPlanVersion}
+                  onSave={savePlan}
+                  onApprove={approvePlan}
+                  onExecute={executePlan}
+                  t={t}
+                />
+              ) : (
+                <ResearchEvidenceLedger projectId={projectId} taskId={selectedTask.id} refreshToken={evidenceRefreshToken} t={t} />
+              )
+            ) : (
+              <div className="grid h-full place-items-center px-6 text-center">
+                <div className="max-w-sm">
+                  <Sparkles className="mx-auto h-5 w-5 text-[color:var(--app-accent)]" aria-hidden="true" />
+                  <p className="mt-2 text-xs leading-5 text-[color:var(--app-muted)]">{t("research.workbench.taskEmptyComposer")}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
     </section>
   );
 }

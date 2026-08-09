@@ -7,6 +7,7 @@ import {
   newChatSession,
   saveChatStore,
   type ChatStoreChangeDetail,
+  type ChatSessionOpenDetail,
   type ChatMessage,
   type ChatSession,
 } from "../../hooks/chatSessionStore";
@@ -120,6 +121,25 @@ export function useChatWorkspaceState(props: {
     window.addEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
     return () => {
       window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined") {
+      return;
+    }
+    const handleSessionOpen = (event: Event) => {
+      const detail = (event as CustomEvent<ChatSessionOpenDetail>).detail;
+      if (detail?.projectId !== projectId) {
+        return;
+      }
+      if (sessionsRef.current.some((session) => session.id === detail.sessionId)) {
+        setActiveSessionId(detail.sessionId);
+      }
+    };
+    window.addEventListener("latotex.chat.session.open", handleSessionOpen as EventListener);
+    return () => {
+      window.removeEventListener("latotex.chat.session.open", handleSessionOpen as EventListener);
     };
   }, [projectId]);
 

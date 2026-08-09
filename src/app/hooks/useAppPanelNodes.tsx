@@ -50,6 +50,17 @@ export function useAppPanelNodes(params: any) {
     t,
     busy,
     activeProjectId,
+    selectedFile,
+    agentPhase,
+    agentRunId,
+    agentMessages,
+    agentProposal,
+    agentPendingAction,
+    events,
+    onRunWorkspaceAgent,
+    onAcceptWorkspaceAgentProposal,
+    onRejectWorkspaceAgentProposal,
+    onResolveWorkspaceAgentPendingAction,
     fileList,
     settingsSection,
     setSettingsSection,
@@ -293,6 +304,22 @@ export function useAppPanelNodes(params: any) {
       <LazyUnifiedAgentWorkspace
         projectId={activeProjectId}
         models={activeModelCatalog}
+        chat={{
+          modelOverride: settings?.uiPrefs?.featureModelBindings?.chatAgentModelId ?? null,
+          channelPrefs: settings?.uiPrefs?.channels ?? null,
+          selectedFile,
+          agentPhase,
+          agentRunId,
+          agentMessages,
+          agentProposal,
+          agentPendingAction,
+          events,
+          onRunWorkspaceAgent,
+          onAcceptWorkspaceAgentProposal,
+          onRejectWorkspaceAgentProposal,
+          onResolveWorkspaceAgentPendingAction,
+          onRequestAgentReview: (prompt) => onRunWorkspaceAgent(prompt, { forceNewSession: true }),
+        }}
         t={t}
       />
     </Suspense>

@@ -310,7 +310,18 @@ export type ModelDraftTestInput = {
   apiKey: string;
 };
 
-export type OnboardingStep = "open" | "compile" | "view";
+export type OnboardingStep =
+  | "goal"
+  | "domain_privacy"
+  | "model"
+  | "question"
+  | "plan_review";
+
+export type ResearchDomain =
+  | "general"
+  | "life_sciences"
+  | "social_sciences"
+  | "engineering";
 
 export type OnboardingState = {
   version: number;
@@ -382,6 +393,9 @@ export type AppSettings = {
     editorResizeRefreshDelayMs?: number;
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
+    researchGoalByProject?: Record<string, string>;
+    researchDomainByProject?: Record<string, ResearchDomain>;
+    researchPrivacyReviewedByProject?: Record<string, boolean>;
     sidebarPageOrder?: WorkspacePage[];
     agentToolPrefs?: AgentToolPrefs;
     agentPermissionPrefs?: AgentPermissionPrefs;

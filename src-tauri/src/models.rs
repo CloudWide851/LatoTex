@@ -651,6 +651,9 @@ pub struct UiPrefs {
         Option<std::collections::HashMap<String, Vec<String>>>,
     pub library_explorer_expanded_paths_by_project:
         Option<std::collections::HashMap<String, Vec<String>>>,
+    pub research_goal_by_project: Option<std::collections::HashMap<String, String>>,
+    pub research_domain_by_project: Option<std::collections::HashMap<String, String>>,
+    pub research_privacy_reviewed_by_project: Option<std::collections::HashMap<String, bool>>,
     pub agent_tool_prefs: Option<AgentToolPrefs>,
     pub agent_permission_prefs: Option<AgentPermissionPrefs>,
     pub agent_team_prefs: Option<AgentTeamPrefs>,

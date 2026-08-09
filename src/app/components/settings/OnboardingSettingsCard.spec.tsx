@@ -27,7 +27,7 @@ function SettingsCardProbe() {
       onboarding: {
         ...startOnboarding("other"),
         status: "completed",
-        completedSteps: ["open", "compile", "view"],
+        completedSteps: ["goal", "domain_privacy", "model", "question", "plan_review"],
       },
     },
   });

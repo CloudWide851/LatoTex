@@ -9,11 +9,16 @@ import {
   FlaskConical,
   PackageCheck,
   RefreshCw,
-  ShieldCheck,
   Target,
 } from "lucide-react";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
-import type { AppSettings, ResourceNode, WorkspacePage } from "../../../shared/types/app";
+import type {
+  AppSettings,
+  OnboardingStep,
+  ResearchDomain,
+  ResourceNode,
+  WorkspacePage,
+} from "../../../shared/types/app";
 import type {
   EvidencePacket,
   ResearchAgentRun,
@@ -21,13 +26,13 @@ import type {
   ResearchWorkspaceSnapshot,
 } from "../../../shared/types/researchAgent";
 import {
-  createResearchTask,
   getResearchWorkspace,
   listResearchEvidence,
   listResearchRuns,
 } from "../../../shared/api/researchAgent";
 import { requestSettingsSection } from "../../settings/settingsNavigation";
 import { cn } from "../../../lib/utils";
+import { ResearchOnboardingPanel } from "./ResearchOnboardingPanel";
 
 type TranslationFn = (key: MessageKey) => string;
 
@@ -100,6 +105,12 @@ export function ProjectOverviewWorkspace(props: {
   settings: AppSettings | null;
   chatAgentModelId: string | null;
   onPageChange: (page: WorkspacePage) => void;
+  onOnboardingDismiss: () => void;
+  onOnboardingRestart: () => void;
+  onOnboardingRecordStep: (step: OnboardingStep) => void;
+  onProjectGoalSave: (goal: string) => void;
+  onResearchDomainChange: (domain: ResearchDomain) => void;
+  onResearchPrivacyReview: () => void;
   t: TranslationFn;
 }) {
   const {
@@ -110,12 +121,17 @@ export function ProjectOverviewWorkspace(props: {
     settings,
     chatAgentModelId,
     onPageChange,
+    onOnboardingDismiss,
+    onOnboardingRestart,
+    onOnboardingRecordStep,
+    onProjectGoalSave,
+    onResearchDomainChange,
+    onResearchPrivacyReview,
     t,
   } = props;
   const [overview, setOverview] = useState<OverviewState>(EMPTY_OVERVIEW);
   const [goal, setGoal] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const refreshSequenceRef = useRef(0);
 
@@ -156,30 +172,27 @@ export function ProjectOverviewWorkspace(props: {
     };
   }, [refresh]);
 
+  const savedGoal = settings?.uiPrefs?.researchGoalByProject?.[projectId]?.trim() ?? "";
+  useEffect(() => {
+    setGoal(savedGoal);
+  }, [projectId, savedGoal]);
+
   const activeRun = overview.runs.find((run) => !["completed", "failed", "cancelled"].includes(run.status));
   const phase = resolvePhase(overview.currentTask);
   const phases = ["discuss", "plan", "execute", "verify", "deliver"] as const;
   const activePhaseIndex = phases.indexOf(phase);
   const literatureCount = useMemo(() => countLiterature(libraryTree), [libraryTree]);
   const modelConfigured = Boolean(chatAgentModelId || settings?.agentBindings.some((binding) => binding.modelId));
-  const privacyReviewed = Boolean(settings?.uiPrefs?.agentPermissionPrefs);
+  const privacyReviewed = settings?.uiPrefs?.researchPrivacyReviewedByProject?.[projectId] === true;
+  const questionAsked = overview.snapshot.tasks.some((task) => Boolean(task.chatSessionId));
+  const planAvailable = overview.snapshot.plans.length > 0;
 
-  const recordGoal = async () => {
+  const recordGoal = () => {
     const nextGoal = goal.trim();
-    if (!nextGoal || saving || overview.currentTask) {
+    if (!nextGoal || nextGoal === savedGoal) {
       return;
     }
-    setSaving(true);
-    setError(false);
-    try {
-      await createResearchTask(projectId, nextGoal);
-      setGoal("");
-      await refresh();
-    } catch {
-      setError(true);
-    } finally {
-      setSaving(false);
-    }
+    onProjectGoalSave(nextGoal);
   };
 
   const openSettings = (section: "models" | "agent-permissions") => {
@@ -187,7 +200,11 @@ export function ProjectOverviewWorkspace(props: {
     onPageChange("settings");
   };
 
-  const nextKey = overview.currentTask ? NEXT_MESSAGE_KEY[phase] : "overview.next.goal";
+  const nextKey = overview.currentTask
+    ? NEXT_MESSAGE_KEY[phase]
+    : savedGoal
+      ? "overview.next.plan"
+      : "overview.next.goal";
   const actions: Array<{ page: WorkspacePage; label: string; icon: typeof BookOpenText }> = [
     { page: "library", label: t("overview.actions.literature"), icon: BookOpenText },
     { page: "latex", label: t("overview.actions.writing"), icon: FilePenLine },
@@ -234,31 +251,25 @@ export function ProjectOverviewWorkspace(props: {
                   <Target className="h-4 w-4" />
                   <h2 className="text-xs font-semibold uppercase tracking-[0.12em]">{t("overview.goal.label")}</h2>
                 </div>
-                {overview.currentTask ? (
-                  <p className="mt-4 text-lg font-medium leading-7 text-[color:var(--app-text)]">
-                    {overview.currentTask.goal}
-                  </p>
-                ) : (
-                  <div className="mt-4 grid gap-3">
-                    <p className="text-sm text-[color:var(--app-muted)]">{t("overview.goal.empty")}</p>
-                    <textarea
-                      value={goal}
-                      onChange={(event) => setGoal(event.currentTarget.value)}
-                      rows={3}
-                      aria-label={t("overview.goal.label")}
-                      className="w-full resize-y rounded-md border border-[color:var(--app-border)] bg-[color:var(--editor-widget-bg)] px-3 py-2 text-sm leading-6 text-[color:var(--app-text)] outline-none focus:border-[color:var(--app-accent)]"
-                      placeholder={t("overview.goal.placeholder")}
-                    />
-                    <button
-                      type="button"
-                      className="control-button control-button--primary w-fit px-3 py-1.5 text-sm"
-                      disabled={!goal.trim() || saving}
-                      onClick={() => void recordGoal()}
-                    >
-                      {saving ? t("overview.goal.saving") : t("overview.goal.create")}
-                    </button>
-                  </div>
-                )}
+                <div className="mt-4 grid gap-3">
+                  {!savedGoal ? <p className="text-sm text-[color:var(--app-muted)]">{t("overview.goal.empty")}</p> : null}
+                  <textarea
+                    value={goal}
+                    onChange={(event) => setGoal(event.currentTarget.value)}
+                    rows={3}
+                    aria-label={t("overview.goal.label")}
+                    className="w-full resize-y rounded-md border border-[color:var(--app-border)] bg-[color:var(--editor-widget-bg)] px-3 py-2 text-sm leading-6 text-[color:var(--app-text)] outline-none focus:border-[color:var(--app-accent)]"
+                    placeholder={t("overview.goal.placeholder")}
+                  />
+                  <button
+                    type="button"
+                    className="control-button control-button--primary w-fit px-3 py-1.5 text-sm"
+                    disabled={!goal.trim() || goal.trim() === savedGoal}
+                    onClick={recordGoal}
+                  >
+                    {t("overview.goal.create")}
+                  </button>
+                </div>
               </article>
 
               <article className="app-material-shell rounded-lg border p-4 sm:p-5">
@@ -306,18 +317,25 @@ export function ProjectOverviewWorkspace(props: {
             </article>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <article className="app-material-shell rounded-lg border p-4 sm:p-5">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-[color:var(--app-accent)]" />
-                  <h2 className="text-sm font-semibold text-[color:var(--app-text)]">{t("overview.onboarding.title")}</h2>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-[color:var(--app-muted)]">{t("overview.onboarding.description")}</p>
-                <div className="mt-4 grid gap-2">
-                  <OnboardingRow done={Boolean(overview.currentTask)} label={t("overview.onboarding.goal")} doneLabel={t("overview.onboarding.complete")} />
-                  <OnboardingRow done={privacyReviewed} label={t("overview.onboarding.privacy")} doneLabel={t("overview.onboarding.complete")} actionLabel={t("overview.onboarding.openPrivacy")} onAction={() => openSettings("agent-permissions")} />
-                  <OnboardingRow done={modelConfigured} label={t("overview.onboarding.model")} doneLabel={t("overview.onboarding.complete")} actionLabel={t("overview.onboarding.openModels")} onAction={() => openSettings("models")} />
-                </div>
-              </article>
+              <ResearchOnboardingPanel
+                projectId={projectId}
+                settings={settings}
+                modelConfigured={modelConfigured}
+                privacyReviewed={privacyReviewed}
+                questionAsked={questionAsked}
+                planAvailable={planAvailable}
+                onDismiss={onOnboardingDismiss}
+                onRestart={onOnboardingRestart}
+                onRecordStep={onOnboardingRecordStep}
+                onResearchDomainChange={onResearchDomainChange}
+                onOpenPrivacy={() => {
+                  onResearchPrivacyReview();
+                  openSettings("agent-permissions");
+                }}
+                onOpenModels={() => openSettings("models")}
+                onOpenAgent={() => onPageChange("agents")}
+                t={t}
+              />
 
               <article className="app-material-shell rounded-lg border p-4 sm:p-5">
                 <div className="flex items-center gap-2">
@@ -347,29 +365,5 @@ export function ProjectOverviewWorkspace(props: {
         ) : null}
       </div>
     </section>
-  );
-}
-
-function OnboardingRow(props: {
-  done: boolean;
-  label: string;
-  doneLabel: string;
-  actionLabel?: string;
-  onAction?: () => void;
-}) {
-  return (
-    <div className="app-material-inset flex min-h-11 items-center gap-3 rounded-md border px-3 py-2">
-      {props.done
-        ? <Check className="h-4 w-4 shrink-0 text-[color:var(--app-accent)]" />
-        : <Circle className="h-4 w-4 shrink-0 text-[color:var(--app-muted)]" />}
-      <span className="min-w-0 flex-1 text-xs text-[color:var(--app-text)]">{props.label}</span>
-      {props.done ? (
-        <span className="text-[11px] text-[color:var(--app-muted)]">{props.doneLabel}</span>
-      ) : props.onAction && props.actionLabel ? (
-        <button type="button" className="text-[11px] font-medium text-[color:var(--app-accent)]" onClick={props.onAction}>
-          {props.actionLabel}
-        </button>
-      ) : null}
-    </div>
   );
 }

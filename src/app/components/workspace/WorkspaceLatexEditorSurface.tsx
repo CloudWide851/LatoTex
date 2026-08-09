@@ -3,7 +3,6 @@ import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import { LatexWorkspaceEditorPanel } from "../editor/LatexWorkspaceEditorPanel";
 import type { AgentTerminalLaunchRequest } from "../terminal/terminalTypes";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
-import { WorkspaceOnboardingChecklist } from "./WorkspaceOnboardingChecklist";
 import { findResearchWriteLock } from "../../../shared/utils/researchResourceLock";
 
 export function WorkspaceLatexEditorSurface(props: {
@@ -76,12 +75,6 @@ export function WorkspaceLatexEditorSurface(props: {
         onCloseChatTab={props.onCloseChatTab}
         onActivateChatTab={props.onActivateChatTab}
         onChatReviewRequest={props.onChatReviewRequest}
-      />
-      <WorkspaceOnboardingChecklist
-        activeProjectId={shell.activeProjectId}
-        onboarding={shell.settings?.uiPrefs?.onboarding}
-        onDismiss={shell.onOnboardingDismiss}
-        t={shell.t}
       />
     </div>
   );

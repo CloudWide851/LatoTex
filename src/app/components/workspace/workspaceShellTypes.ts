@@ -6,6 +6,8 @@ import type {
   FsAction,
   FsScope,
   ResourceNode,
+  OnboardingStep,
+  ResearchDomain,
   AgentTeamMode,
   ShareCommentItem,
   ShareSessionInfo,
@@ -127,6 +129,11 @@ export type AppWorkspaceShellProps = {
   onOpenFolder: () => void;
   onCreateSample: () => void;
   onOnboardingDismiss: () => void;
+  onOnboardingRestart: () => void;
+  onOnboardingRecordStep: (step: OnboardingStep) => void;
+  onProjectGoalSave: (goal: string) => void;
+  onResearchDomainChange: (domain: ResearchDomain) => void;
+  onResearchPrivacyReview: () => void;
   onPdfViewed: () => void;
   onSaveFile: () => void;
   onWriteSelectedFileContent: (content: string) => Promise<boolean>;

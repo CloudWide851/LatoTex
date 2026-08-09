@@ -21,6 +21,10 @@ import { ChatWorkspaceComposer } from "./ChatWorkspaceComposer";
 import { updateSession } from "./chatWorkspaceUtils";
 import { useChatWorkspaceState } from "./useChatWorkspaceState";
 import { useChatRunEventHydration } from "./useChatRunEventHydration";
+import {
+  ensureResearchConversationTask,
+  startResearchConversationPlanning,
+} from "./researchConversationPlanning";
 
 type TranslationFn = (key: any) => string;
 
@@ -37,7 +41,13 @@ type ChatAutoFixRequest = {
 };
 
 function renderRunFailureMessage(t: TranslationFn, error: unknown): string {
-  void error;
+  const diagnostic = error instanceof Error ? error.message : String(error ?? "");
+  if (diagnostic.includes("research.planning.model_unavailable")) {
+    return t("research.workbench.modelUnavailable");
+  }
+  if (diagnostic.includes("research.planning.envelope_invalid")) {
+    return t("research.workbench.planInvalid");
+  }
   return t("chat.runFailed");
 }
 function titleFromPrompt(prompt: string, fallback: string) {
@@ -64,7 +74,7 @@ function ensureTelegramSession(
   };
 }
 
-export function ChatWorkspace(props: {
+export type ChatWorkspaceProps = {
   projectId: string | null;
   modelOverride?: string | null;
   channelPrefs?: ChannelPrefs | null;
@@ -83,7 +93,9 @@ export function ChatWorkspace(props: {
   onResolveWorkspaceAgentPendingAction?: (accept: boolean) => void | Promise<void>;
   onRequestAgentReview?: (prompt: string) => void;
   t: TranslationFn;
-}) {
+};
+
+export function ChatWorkspace(props: ChatWorkspaceProps) {
   const { projectId, modelOverride, channelPrefs, t } = props;
   const {
     activeSession,
@@ -185,6 +197,16 @@ export function ChatWorkspace(props: {
     if (!sessionId) {
       sessionId = ensureSession();
     }
+    let researchTaskId: string | null = null;
+    if (chatMode === "research" && parsed.kind !== "command") {
+      try {
+        const task = await ensureResearchConversationTask({ projectId, sessionId, prompt });
+        researchTaskId = task.id;
+      } catch (error) {
+        setLastError(renderRunFailureMessage(t, error));
+        return;
+      }
+    }
     const currentSession = sessionsRef.current.find((item) => item.id === sessionId) ?? null;
     const shouldRetitle = !currentSession || currentSession.messages.length === 0;
     setLastError("");
@@ -196,6 +218,7 @@ export function ChatWorkspace(props: {
       role: "user",
       text: options?.telegramUser ? `[TG:${options.telegramUser}] ${prompt}` : prompt,
       createdAt: new Date().toISOString(),
+      taskId: researchTaskId,
     };
     appendMessage(sessionId, userMessage);
     if (parsed.kind === "command" && parsed.command === "memory") {
@@ -230,19 +253,27 @@ export function ChatWorkspace(props: {
       role: "assistant",
       text: "",
       createdAt: new Date().toISOString(),
+      taskId: researchTaskId,
     });
     setRunning(true);
     setRunningAssistantMessageId(assistantMessageId);
     try {
-      const accepted = await startChatWorkflow({
-        projectId,
-        prompt: chatMode === "research" ? `${RESEARCH_MODE_INSTRUCTION}\n\n${prompt}` : prompt,
-        contextPaths: contextScope === "current-file" && props.selectedFile
-          ? [props.selectedFile]
-          : [],
-        modelOverride: modelOverride ?? undefined,
-        teamMode: options?.teamMode ?? "auto",
-      });
+      const accepted = researchTaskId
+        ? await startResearchConversationPlanning({
+            projectId,
+            taskId: researchTaskId,
+            prompt,
+            modelOverride,
+          })
+        : await startChatWorkflow({
+            projectId,
+            prompt: chatMode === "research" ? `${RESEARCH_MODE_INSTRUCTION}\n\n${prompt}` : prompt,
+            contextPaths: contextScope === "current-file" && props.selectedFile
+              ? [props.selectedFile]
+              : [],
+            modelOverride: modelOverride ?? undefined,
+            teamMode: options?.teamMode ?? "auto",
+          });
       setPendingRunId(accepted.runId);
       updateMessageRunId(sessionId, assistantMessageId, accepted.runId);
       let cursor = 0;
@@ -520,6 +551,7 @@ export function ChatWorkspace(props: {
           </div>
         ) : (
           <ChatMessageList
+            projectId={projectId}
             messages={activeSession.messages}
             events={hydratedEvents}
             running={running}

@@ -4,7 +4,6 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createResearchTask,
   getResearchWorkspace,
   listResearchEvidence,
   listResearchRuns,
@@ -13,7 +12,6 @@ import type { ResearchTask, ResearchWorkspaceSnapshot } from "../../../shared/ty
 import { ProjectOverviewWorkspace } from "./ProjectOverviewWorkspace";
 
 vi.mock("../../../shared/api/researchAgent", () => ({
-  createResearchTask: vi.fn(),
   getResearchWorkspace: vi.fn(),
   listResearchEvidence: vi.fn(),
   listResearchRuns: vi.fn(),
@@ -72,7 +70,7 @@ describe("ProjectOverviewWorkspace", () => {
     vi.mocked(getResearchWorkspace)
       .mockResolvedValueOnce(EMPTY_SNAPSHOT)
       .mockResolvedValue({ ...EMPTY_SNAPSHOT, tasks: [TASK] });
-    vi.mocked(createResearchTask).mockResolvedValue(TASK);
+    const onProjectGoalSave = vi.fn();
 
     await act(async () => {
       root.render(
@@ -84,6 +82,12 @@ describe("ProjectOverviewWorkspace", () => {
           settings={null}
           chatAgentModelId={null}
           onPageChange={vi.fn()}
+          onOnboardingDismiss={vi.fn()}
+          onOnboardingRestart={vi.fn()}
+          onOnboardingRecordStep={vi.fn()}
+          onProjectGoalSave={onProjectGoalSave}
+          onResearchDomainChange={vi.fn()}
+          onResearchPrivacyReview={vi.fn()}
           t={(key) => String(key)}
         />,
       );
@@ -110,8 +114,7 @@ describe("ProjectOverviewWorkspace", () => {
     });
     await flushEffects();
 
-    expect(createResearchTask).toHaveBeenCalledWith("project-1", "Verify a reproducible claim");
-    expect(container.textContent).toContain("Verify a reproducible claim");
+    expect(onProjectGoalSave).toHaveBeenCalledWith("Verify a reproducible claim");
   });
 
   it("shows evidence and active-run progress from persisted research state", async () => {
@@ -159,6 +162,12 @@ describe("ProjectOverviewWorkspace", () => {
           settings={null}
           chatAgentModelId={null}
           onPageChange={vi.fn()}
+          onOnboardingDismiss={vi.fn()}
+          onOnboardingRestart={vi.fn()}
+          onOnboardingRecordStep={vi.fn()}
+          onProjectGoalSave={vi.fn()}
+          onResearchDomainChange={vi.fn()}
+          onResearchPrivacyReview={vi.fn()}
           t={(key) => String(key)}
         />,
       );

@@ -7,10 +7,13 @@ import type { ChatMessage } from "../../hooks/chatSessionStore";
 import { extractEventCards } from "../../hooks/analysisWorkspaceHelpers";
 import { AgentTraceCards } from "../agent/AgentTraceCards";
 import { ChatRunningIndicator } from "./ChatRunningIndicator";
+import { ResearchTimelineCard } from "./ResearchTimelineCard";
+import { useResearchTimelineState } from "./useResearchTimelineState";
 
 type TranslationFn = (key: any) => string;
 
 export function ChatMessageList(props: {
+  projectId: string | null;
   messages: ChatMessage[];
   events: SwarmEvent[];
   running: boolean;
@@ -28,6 +31,10 @@ export function ChatMessageList(props: {
     onResolveWorkspaceAgentPendingAction,
     t,
   } = props;
+  const { snapshot, evidenceCountByTask } = useResearchTimelineState({
+    projectId: props.projectId,
+    messages,
+  });
   const runIds = useMemo(
     () => Array.from(new Set(
       messages
@@ -36,6 +43,15 @@ export function ChatMessageList(props: {
     )),
     [messages],
   );
+  const latestResearchCardMessageByTask = useMemo(() => {
+    const latest = new Map<string, string>();
+    for (const message of messages) {
+      if (message.role === "assistant" && message.taskId) {
+        latest.set(message.taskId, message.id);
+      }
+    }
+    return latest;
+  }, [messages]);
   const cardsByRunId = useMemo(() => {
     const next = new Map<string, ReturnType<typeof extractEventCards>>();
     for (const runId of runIds) {
@@ -51,6 +67,14 @@ export function ChatMessageList(props: {
           && item.role === "assistant"
           && item.id === latestRunningAssistantMessageId;
         const traceCards = item.runId ? (cardsByRunId.get(item.runId) ?? []) : [];
+        const researchTask = item.taskId
+          ? snapshot?.tasks.find((task) => task.id === item.taskId) ?? null
+          : null;
+        const researchPlan = researchTask
+          ? (snapshot?.plans ?? [])
+              .filter((plan) => plan.taskId === researchTask.id)
+              .sort((left, right) => right.version - left.version)[0] ?? null
+          : null;
         return (
           <article
             key={item.id}
@@ -109,6 +133,16 @@ export function ChatMessageList(props: {
                     compact
                   />
                 </div>
+              ) : null}
+              {item.role === "assistant"
+                && researchTask
+                && latestResearchCardMessageByTask.get(researchTask.id) === item.id ? (
+                <ResearchTimelineCard
+                  task={researchTask}
+                  plan={researchPlan}
+                  evidenceCount={evidenceCountByTask[researchTask.id] ?? 0}
+                  t={t}
+                />
               ) : null}
             </div>
           </article>

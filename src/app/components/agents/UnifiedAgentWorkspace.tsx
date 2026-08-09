@@ -4,6 +4,7 @@ import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import type { ModelCatalogItem } from "../../../shared/types/app";
 import { AgentControlCenter } from "./AgentControlCenter";
 import { ResearchAgentWorkbench } from "./ResearchAgentWorkbench";
+import { ChatWorkspace, type ChatWorkspaceProps } from "../chat/ChatWorkspace";
 
 type TranslationFn = (key: MessageKey) => string;
 type AgentWorkspaceTab = "workbench" | "studio";
@@ -11,9 +12,10 @@ type AgentWorkspaceTab = "workbench" | "studio";
 export function UnifiedAgentWorkspace(props: {
   projectId: string | null;
   models: ModelCatalogItem[];
+  chat: Omit<ChatWorkspaceProps, "projectId" | "t">;
   t: TranslationFn;
 }) {
-  const { projectId, models, t } = props;
+  const { projectId, models, chat, t } = props;
   const [tab, setTab] = useState<AgentWorkspaceTab>("workbench");
   return (
     <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
@@ -43,7 +45,11 @@ export function UnifiedAgentWorkspace(props: {
       </header>
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === "workbench" ? (
-          <ResearchAgentWorkbench projectId={projectId} t={t} />
+          <ResearchAgentWorkbench
+            projectId={projectId}
+            conversation={<ChatWorkspace {...chat} projectId={projectId} t={t} />}
+            t={t}
+          />
         ) : (
           <AgentControlCenter projectId={projectId} models={models} t={t} />
         )}

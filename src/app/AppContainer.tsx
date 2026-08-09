@@ -328,8 +328,6 @@ export function AppContainer() {
 
   const onboarding = useOnboardingController({
     activeProjectId: s.activeProjectId,
-    selectedTextFileReadyPath: s.selectedTextFileReadyPath,
-    onboarding: s.settings?.uiPrefs?.onboarding,
     setSettings: s.setSettings,
     onCompile: handlers.handleCompile,
   });
@@ -634,6 +632,17 @@ export function AppContainer() {
     t,
     busy: s.busy,
     activeProjectId: s.activeProjectId,
+    selectedFile: s.selectedFile,
+    agentPhase: s.agentPhase,
+    agentRunId: s.agentRunId,
+    agentMessages: s.agentMessages,
+    agentProposal: activeAgentProposal,
+    agentPendingAction: s.agentPendingAction,
+    events: s.events,
+    onRunWorkspaceAgent: agentSession.handleAgentRun,
+    onAcceptWorkspaceAgentProposal: handlers.handleAcceptAgentProposal,
+    onRejectWorkspaceAgentProposal: handlers.handleRejectAgentProposal,
+    onResolveWorkspaceAgentPendingAction: handlers.handleResolveAgentPendingAction,
     settingsSection: s.settingsSection,
     setSettingsSection: s.setSettingsSection,
     busytexCacheInfo: s.busytexCacheInfo,
@@ -708,6 +717,11 @@ export function AppContainer() {
       handleInitProjectFromFolderWithGuard={workspaceActions.handleInitProjectFromFolderWithGuard}
       handleCreateSampleProject={handlers.handleCreateSampleProject}
       handleOnboardingDismiss={onboarding.handleDismiss}
+      handleOnboardingRestart={onboarding.restart}
+      handleOnboardingRecordStep={onboarding.recordStep}
+      handleProjectGoalSave={onboarding.saveProjectGoal}
+      handleResearchDomainChange={onboarding.saveResearchDomain}
+      handleResearchPrivacyReview={onboarding.markResearchPrivacyReviewed}
       handlePdfViewed={onboarding.handlePdfViewed}
       handleWindowControlWithGuard={workspaceActions.handleWindowControlWithGuard}
       shareSession={shareSession.shareSession}

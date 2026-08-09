@@ -60,6 +60,12 @@ export function LazyProjectOverviewWorkspaceSurface(props: { shell: AppWorkspace
         settings={shell.settings}
         chatAgentModelId={shell.chatAgentModelId}
         onPageChange={shell.onPageChange}
+        onOnboardingDismiss={shell.onOnboardingDismiss}
+        onOnboardingRestart={shell.onOnboardingRestart}
+        onOnboardingRecordStep={shell.onOnboardingRecordStep}
+        onProjectGoalSave={shell.onProjectGoalSave}
+        onResearchDomainChange={shell.onResearchDomainChange}
+        onResearchPrivacyReview={shell.onResearchPrivacyReview}
         t={shell.t}
       />
     </Suspense>

@@ -4,16 +4,21 @@ import { describe, expect, it } from "vitest";
 
 describe("LatexWorkspaceEditorPanel compile state contract", () => {
   it("limits compileBusy to compile-dependent editor actions", () => {
-    const source = fs.readFileSync(
+    const panelSource = fs.readFileSync(
       path.resolve(process.cwd(), "src/app/components/editor/LatexWorkspaceEditorPanel.tsx"),
       "utf8",
     );
+    const toolbarSource = fs.readFileSync(
+      path.resolve(process.cwd(), "src/app/components/editor/LatexEditorToolbarActions.tsx"),
+      "utf8",
+    );
 
-    expect(source).toContain("disabled={busy || compileBusy || !canCompileSelectedFile}");
-    expect(source).toContain("autoFixDisabled={busy || compileBusy || compileAssistAutoFixBusy}");
-    expect(source).toContain("<EditorTabsBar");
-    expect(source).toContain("busy={busy}");
-    expect(source).not.toContain("busy={busy || compileBusy}");
-    expect(source.match(/disabled=\{busy\}/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(panelSource).toContain("compileBusy={compileBusy}");
+    expect(toolbarSource).toContain("disabled={busy || compileBusy || !isTexPath(selectedFile)}");
+    expect(toolbarSource).toContain("autoFixDisabled={busy || compileBusy || compileAssistAutoFixBusy}");
+    expect(toolbarSource).toContain("const editorWriteDisabled = busy || selectedFileWriteLocked");
+    expect(panelSource).toContain("<EditorTabsBar");
+    expect(panelSource).toContain("busy={busy}");
+    expect(panelSource).not.toContain("busy={busy || compileBusy}");
   });
 });

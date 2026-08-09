@@ -10,6 +10,7 @@ type TranslationFn = (key: MessageKey) => string;
 export function LatexEditorToolbarActions(props: {
   activeProjectId: string | null;
   busy: boolean;
+  compileBusy: boolean;
   selectedFile: string | null;
   selectedIsDraw: boolean;
   selectedFileWriteLocked: boolean;
@@ -34,6 +35,7 @@ export function LatexEditorToolbarActions(props: {
   const {
     activeProjectId,
     busy,
+    compileBusy,
     selectedFile,
     selectedIsDraw,
     selectedFileWriteLocked,
@@ -118,7 +120,7 @@ export function LatexEditorToolbarActions(props: {
         <button
           className="panel-topbar-btn editor-toolbar-btn editor-toolbar-btn--primary motion-hover-rise disabled:opacity-50"
           onClick={onCompileClick}
-          disabled={busy || !isTexPath(selectedFile)}
+          disabled={busy || compileBusy || !isTexPath(selectedFile)}
           title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
           aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
         >
@@ -132,7 +134,7 @@ export function LatexEditorToolbarActions(props: {
           onAutoFix={() => {
             void onCompileAssistAutoFix();
           }}
-          autoFixDisabled={busy || compileAssistAutoFixBusy}
+          autoFixDisabled={busy || compileBusy || compileAssistAutoFixBusy}
           t={t}
         />
       </div>
