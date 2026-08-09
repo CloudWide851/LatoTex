@@ -2,10 +2,18 @@
 #[serde(rename_all = "camelCase")]
 pub struct ResearchCapabilityDescriptor {
     pub id: String,
+    pub input_schema: serde_json::Value,
+    pub output_type: String,
     pub risk_level: String,
+    pub risk_reason_key: String,
     pub execution_target: String,
     pub auto_after_plan_approval: bool,
     pub resource_mode: Option<String>,
+    pub idempotency: String,
+    pub timeout_ms: u64,
+    pub max_retries: u32,
+    pub undo_capability: Option<String>,
+    pub egress_category: String,
     pub requires_network: bool,
 }
 

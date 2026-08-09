@@ -110,10 +110,23 @@ export type ResearchWorkspaceSnapshot = {
 
 export type ResearchCapabilityDescriptor = {
   id: string;
+  inputSchema: {
+    type: "object";
+    properties?: Record<string, unknown>;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+  outputType: string;
   riskLevel: "read" | "write" | "high";
+  riskReasonKey: string;
   executionTarget: "backend" | "frontend";
   autoAfterPlanApproval: boolean;
   resourceMode: "read" | "write" | null;
+  idempotency: "safe_replay" | "request_deduplicated" | "result_keyed" | "checkpointed_write" | "never_replay";
+  timeoutMs: number;
+  maxRetries: number;
+  undoCapability: string | null;
+  egressCategory: "none" | "academic_metadata" | "external_submission" | "runtime_download" | "plugin_download";
   requiresNetwork: boolean;
 };
 
@@ -198,6 +211,39 @@ export type AgentResourceLock = {
   runId: string;
   heartbeatAt: string;
   expiresAt: string;
+};
+
+export type ResearchChangeCheckpoint = {
+  checkpointId: string;
+  projectId: string;
+  runId: string;
+  stepId: string;
+  relativePath: string;
+  beforeHash: string;
+  afterHash: string | null;
+  status: "pending" | "applied" | "undone" | "conflict";
+  createdAt: string;
+  appliedAt: string | null;
+  undoneAt: string | null;
+};
+
+export type ResearchChangeCheckpointUndoResult = {
+  checkpoint: ResearchChangeCheckpoint;
+  outcome: "undone" | "conflict";
+  conflict: null | {
+    baseContent: string;
+    appliedContent: string;
+    currentContent: string;
+    patch: unknown;
+  };
+};
+
+export type ResearchRunRecoveryResponse = {
+  resumedRunIds: string[];
+  preservedRunIds: string[];
+  reviewRequiredRunIds: string[];
+  cleanedLeaseCount: number;
+  cleanedLockCount: number;
 };
 
 export type EvidencePacket = {

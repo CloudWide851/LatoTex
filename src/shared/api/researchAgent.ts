@@ -5,6 +5,8 @@ import type {
   AgentResourceLock,
   EvidencePacket,
   ResearchChatMigrationResult,
+  ResearchChangeCheckpoint,
+  ResearchChangeCheckpointUndoResult,
   ResearchChatStore,
   ResearchAgentRun,
   ResearchCapabilityDescriptor,
@@ -12,6 +14,7 @@ import type {
   ResearchPlanExecutionAccepted,
   ResearchPlanVersion,
   ResearchTask,
+  ResearchRunRecoveryResponse,
   ResearchUiCommand,
   ResearchWorkspaceSnapshot,
 } from "../types/researchAgent";
@@ -184,6 +187,35 @@ export async function cancelResearchRun(projectId: string, runId: string) {
   });
   emitResearchRunChanged(projectId);
   return accepted;
+}
+
+export async function recoverResearchRuns(projectId: string): Promise<ResearchRunRecoveryResponse> {
+  const result = await invokeCommand<ResearchRunRecoveryResponse>("research_runs_recover", {
+    input: { projectId },
+  });
+  emitResearchRunChanged(projectId);
+  return result;
+}
+
+export function listResearchChangeCheckpoints(
+  projectId: string,
+  runId?: string | null,
+): Promise<ResearchChangeCheckpoint[]> {
+  return invokeCommand<ResearchChangeCheckpoint[]>("research_change_checkpoint_list", {
+    input: { projectId, runId: runId ?? null },
+  });
+}
+
+export async function undoResearchChangeCheckpoint(
+  projectId: string,
+  checkpointId: string,
+): Promise<ResearchChangeCheckpointUndoResult> {
+  const result = await invokeCommand<ResearchChangeCheckpointUndoResult>(
+    "research_change_checkpoint_undo",
+    { input: { projectId, checkpointId } },
+  );
+  emitResearchRunChanged(projectId);
+  return result;
 }
 
 export function listResearchPlanApprovals(projectId: string): Promise<ResearchPlanApproval[]> {

@@ -32,6 +32,7 @@ export async function applyAgentProposal(params: {
     mainContent: string;
     options: { updatePreview: boolean; emitToast: boolean };
   }) => Promise<{ status: string; diagnostics: string[] }>;
+  propagateErrors?: boolean;
   t: (key: any) => string;
 }) {
   const {
@@ -53,6 +54,7 @@ export async function applyAgentProposal(params: {
     runAnalysisFromAgent,
     requestAutoCommitDecision,
     runCompileAfterApply,
+    propagateErrors = false,
     t,
   } = params;
 
@@ -136,6 +138,9 @@ export async function applyAgentProposal(params: {
     }
   } catch (error) {
     setToast({ type: "error", message: String(error) });
+    if (propagateErrors) {
+      throw error;
+    }
   } finally {
     setBusy(false);
   }

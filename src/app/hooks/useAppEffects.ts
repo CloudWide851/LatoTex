@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
 import { getEvents, recoverAgentRuns } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
+import { recoverResearchRuns } from "../../shared/api/researchAgent";
 import { getWorkspaceTree } from "../../shared/api/workspace";
 import type { SwarmEvent } from "../../shared/types/app";
 import {
@@ -247,6 +248,11 @@ export function useAppEffects(params: {
       .catch((error) => {
         void runtimeLogWrite("WARN", `agent_runs_recover.frontend_failed: ${String(error)}`).catch(() => undefined);
       });
+    void recoverResearchRuns(activeProjectId).catch((error) => {
+      void runtimeLogWrite("WARN", `research_runs_recover.frontend_failed: ${String(error)}`).catch(
+        () => undefined,
+      );
+    });
     return () => {
       cancelled = true;
     };

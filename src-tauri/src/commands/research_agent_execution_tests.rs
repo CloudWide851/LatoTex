@@ -55,3 +55,16 @@ fn worker_registry_single_flights_and_releases_runs() {
     assert!(claim_research_worker(&key).unwrap());
     super::worker::release_research_worker(&key);
 }
+
+#[test]
+fn restart_replay_is_limited_to_local_idempotent_backend_reads() {
+    let local_read = crate::research_agent::capability_descriptor("workspace.read").unwrap();
+    let network_read = crate::research_agent::capability_descriptor("literature.search").unwrap();
+    let frontend_read = crate::research_agent::capability_descriptor("git.status").unwrap();
+    let checkpointed_write =
+        crate::research_agent::capability_descriptor("workspace.apply_latex").unwrap();
+    assert!(capability_allows_automatic_replay(&local_read));
+    assert!(!capability_allows_automatic_replay(&network_read));
+    assert!(!capability_allows_automatic_replay(&frontend_read));
+    assert!(!capability_allows_automatic_replay(&checkpointed_write));
+}

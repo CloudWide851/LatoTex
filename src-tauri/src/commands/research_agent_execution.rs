@@ -29,6 +29,25 @@ struct ResearchExecutionContext {
     runtime_root: PathBuf,
     app_data_dir: PathBuf,
     project_id: String,
+    lease_owner_id: String,
+    lease_token: String,
+    lease_lost: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+fn assert_execution_lease(context: &ResearchExecutionContext, run_id: &str) -> Result<(), String> {
+    if context
+        .lease_lost
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err("research.run.lease_lost".to_string());
+    }
+    storage::verify_research_run_lease(
+        &context.db_path,
+        &context.project_id,
+        run_id,
+        &context.lease_owner_id,
+        &context.lease_token,
+    )
 }
 
 fn execute_command(
@@ -146,27 +165,27 @@ fn execute_with_lock_heartbeat(
     result
 }
 
-fn execute_plan(context: ResearchExecutionContext, run_id: String, plan: ResearchPlanVersion) {
-    let outcome = execute_plan_inner(&context, &run_id, &plan);
+fn execute_plan(context: &ResearchExecutionContext, run_id: &str, plan: ResearchPlanVersion) {
+    let outcome = execute_plan_inner(context, run_id, &plan);
     if let Err(error) = outcome {
+        if assert_execution_lease(context, run_id).is_err() {
+            return;
+        }
         let current = storage::get_research_plan_run(
             &context.db_path,
             &context.runtime_root,
             &context.project_id,
-            &run_id,
+            run_id,
         )
         .ok();
         let completed = current.as_ref().map(|run| run.completed_steps).unwrap_or(0);
-        let _ = storage::release_research_resource_locks(
-            &context.db_path,
-            &context.project_id,
-            &run_id,
-        );
+        let _ =
+            storage::release_research_resource_locks(&context.db_path, &context.project_id, run_id);
         let _ = storage::update_research_run_progress(
             &context.db_path,
             &context.runtime_root,
             &context.project_id,
-            &run_id,
+            run_id,
             "failed",
             current
                 .as_ref()
@@ -183,6 +202,7 @@ fn execute_plan_inner(
     run_id: &str,
     plan: &ResearchPlanVersion,
 ) -> Result<(), String> {
+    assert_execution_lease(context, run_id)?;
     let mut completed = storage::get_research_plan_run(
         &context.db_path,
         &context.runtime_root,
@@ -191,6 +211,7 @@ fn execute_plan_inner(
     )?
     .completed_steps;
     for step in ordered_execution_steps(plan)? {
+        assert_execution_lease(context, run_id)?;
         if storage::research_step_is_completed(
             &context.db_path,
             &context.project_id,
@@ -281,6 +302,16 @@ fn execute_plan_inner(
             )?;
         }
         if descriptor.execution_target == "frontend" {
+            if let AgentAppCommand::ApplyLatexProposal { path, .. } = &command {
+                storage::prepare_research_change_checkpoint(
+                    &context.db_path,
+                    &context.runtime_root,
+                    &context.project_id,
+                    run_id,
+                    &step.id,
+                    path,
+                )?;
+            }
             let pending_command = serde_json::to_value(&command)
                 .map_err(|_| "research.ui_command.encode_failed".to_string())?;
             storage::store_research_step_result(
@@ -322,6 +353,7 @@ fn execute_plan_inner(
             .elapsed()
             .as_millis()
             .min(i64::MAX as u128) as i64;
+        assert_execution_lease(context, run_id)?;
         storage::release_research_resource_locks(&context.db_path, &context.project_id, run_id)?;
         let command_error = match result {
             Ok(result) => {
@@ -409,6 +441,7 @@ fn execute_plan_inner(
     if current.status == "cancelled" || current.status == "paused" {
         return Ok(());
     }
+    assert_execution_lease(context, run_id)?;
     storage::update_research_run_progress(
         &context.db_path,
         &context.runtime_root,
@@ -433,123 +466,7 @@ fn execute_plan_inner(
     )
 }
 
-fn execution_context(state: &AppState, project_id: &str) -> ResearchExecutionContext {
-    ResearchExecutionContext {
-        db_path: state.db_path.clone(),
-        runtime_root: state.runtime_root.clone(),
-        app_data_dir: state.app_data_dir.clone(),
-        project_id: project_id.to_string(),
-    }
-}
-
-pub fn start_plan_execution(
-    state: &AppState,
-    project_id: &str,
-    task_id: &str,
-    version: i64,
-) -> Result<ResearchPlanExecutionAccepted, String> {
-    let (run, plan) = storage::create_research_plan_run(
-        &state.db_path,
-        &state.runtime_root,
-        project_id,
-        task_id,
-        version,
-    )?;
-    let run_id = run.run_id.clone();
-    let worker_run_id = run_id.clone();
-    let context = execution_context(state, project_id);
-    let worker_key = research_worker_key(project_id, &run_id);
-    if !claim_research_worker(&worker_key)? {
-        return Err("research.run.already_active".to_string());
-    }
-    if let Err(error) = spawn_claimed_plan_worker(
-        context,
-        worker_run_id,
-        plan,
-        format!("latotex-research-{}", &run_id[..run_id.len().min(28)]),
-        worker_key,
-    ) {
-        let _ = storage::update_research_run_progress(
-            &state.db_path,
-            &state.runtime_root,
-            project_id,
-            &run_id,
-            "failed",
-            None,
-            0,
-            Some("Worker start failed"),
-            Some(&error),
-        );
-        return Err(error);
-    }
-    Ok(ResearchPlanExecutionAccepted {
-        run_id,
-        status: "running".to_string(),
-    })
-}
-
-pub fn resume_plan_execution(
-    state: &AppState,
-    project_id: &str,
-    run_id: &str,
-) -> Result<ResearchPlanExecutionAccepted, String> {
-    let run =
-        storage::get_research_plan_run(&state.db_path, &state.runtime_root, project_id, run_id)?;
-    if matches!(run.status.as_str(), "completed" | "failed" | "cancelled") {
-        return Err("research.run.terminal".to_string());
-    }
-    let plan = storage::load_research_plan_version(
-        &state.db_path,
-        &state.runtime_root,
-        project_id,
-        &run.task_id,
-        run.plan_version,
-    )?;
-    let worker_key = research_worker_key(project_id, run_id);
-    if !claim_research_worker(&worker_key)? {
-        return Ok(ResearchPlanExecutionAccepted {
-            run_id: run_id.to_string(),
-            status: run.status,
-        });
-    }
-    storage::update_research_run_progress(
-        &state.db_path,
-        &state.runtime_root,
-        project_id,
-        run_id,
-        "running",
-        run.current_step_id.as_deref(),
-        run.completed_steps,
-        run.last_operation.as_deref(),
-        None,
-    )?;
-    let context = execution_context(state, project_id);
-    let worker_run_id = run_id.to_string();
-    if let Err(error) = spawn_claimed_plan_worker(
-        context,
-        worker_run_id,
-        plan,
-        "latotex-research-resume".to_string(),
-        worker_key,
-    ) {
-        let _ = storage::update_research_run_progress(
-            &state.db_path,
-            &state.runtime_root,
-            project_id,
-            run_id,
-            &run.status,
-            run.current_step_id.as_deref(),
-            run.completed_steps,
-            run.last_operation.as_deref(),
-            run.diagnostic_code.as_deref(),
-        );
-        return Err(error);
-    }
-    Ok(ResearchPlanExecutionAccepted {
-        run_id: run_id.to_string(),
-        status: "running".to_string(),
-    })
-}
+include!("research_agent_execution_control.rs");
 
 #[cfg(test)]
 #[path = "research_agent_execution_tests.rs"]

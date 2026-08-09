@@ -2,158 +2,8 @@ use crate::models::{AgentAppCommand, ResearchCapabilityDescriptor, ResearchPlanS
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 
-const CAPABILITIES: &[(&str, &str, &str, bool, Option<&str>, bool)] = &[
-    ("project.overview", "read", "backend", true, None, false),
-    ("ui.navigate", "read", "frontend", true, None, false),
-    ("literature.search", "read", "backend", true, None, true),
-    (
-        "literature.import",
-        "write",
-        "frontend",
-        true,
-        Some("write"),
-        true,
-    ),
-    (
-        "literature.open",
-        "read",
-        "frontend",
-        true,
-        Some("read"),
-        false,
-    ),
-    (
-        "literature.citation_trace",
-        "read",
-        "frontend",
-        true,
-        None,
-        true,
-    ),
-    (
-        "workspace.read",
-        "read",
-        "backend",
-        true,
-        Some("read"),
-        false,
-    ),
-    (
-        "workspace.propose_latex",
-        "write",
-        "frontend",
-        true,
-        Some("write"),
-        false,
-    ),
-    (
-        "workspace.apply_latex",
-        "write",
-        "frontend",
-        true,
-        Some("write"),
-        false,
-    ),
-    (
-        "workspace.write_non_latex",
-        "high",
-        "frontend",
-        false,
-        Some("write"),
-        false,
-    ),
-    (
-        "workspace.compile",
-        "read",
-        "frontend",
-        true,
-        Some("read"),
-        false,
-    ),
-    (
-        "analysis.run",
-        "read",
-        "frontend",
-        true,
-        Some("read"),
-        false,
-    ),
-    ("report.generate", "read", "frontend", true, None, false),
-    (
-        "report.export",
-        "write",
-        "frontend",
-        true,
-        Some("write"),
-        false,
-    ),
-    (
-        "draw.create",
-        "write",
-        "frontend",
-        true,
-        Some("write"),
-        false,
-    ),
-    ("draw.open", "read", "frontend", true, Some("read"), false),
-    (
-        "draw.export",
-        "write",
-        "frontend",
-        true,
-        Some("write"),
-        false,
-    ),
-    (
-        "submission.check",
-        "read",
-        "backend",
-        true,
-        Some("read"),
-        false,
-    ),
-    (
-        "submission.build",
-        "high",
-        "frontend",
-        false,
-        Some("write"),
-        false,
-    ),
-    ("submission.send", "high", "frontend", false, None, true),
-    ("git.status", "read", "frontend", true, None, false),
-    ("git.diff", "read", "frontend", true, Some("read"), false),
-    (
-        "git.commit",
-        "high",
-        "frontend",
-        false,
-        Some("write"),
-        false,
-    ),
-    ("runtime.status", "read", "backend", true, None, false),
-    ("runtime.update", "high", "frontend", false, None, true),
-    ("plugin.status", "read", "frontend", true, None, false),
-    ("plugin.update", "high", "frontend", false, None, true),
-    ("settings.change", "high", "frontend", false, None, false),
-];
-
 pub fn capability_registry() -> Vec<ResearchCapabilityDescriptor> {
-    CAPABILITIES
-        .iter()
-        .map(
-            |(id, risk, target, auto, resource_mode, requires_network)| {
-                ResearchCapabilityDescriptor {
-                    id: (*id).to_string(),
-                    risk_level: (*risk).to_string(),
-                    execution_target: (*target).to_string(),
-                    auto_after_plan_approval: *auto,
-                    resource_mode: resource_mode.map(str::to_string),
-                    requires_network: *requires_network,
-                }
-            },
-        )
-        .collect()
+    super::capability_descriptors::capability_registry()
 }
 
 pub fn capability_descriptor(id: &str) -> Result<ResearchCapabilityDescriptor, String> {
@@ -251,6 +101,16 @@ mod tests {
         assert_eq!(
             capability_descriptor("git.commit").unwrap().risk_level,
             "high"
+        );
+        let read = capability_descriptor("workspace.read").unwrap();
+        assert_eq!(read.idempotency, "safe_replay");
+        assert_eq!(read.egress_category, "none");
+        assert_eq!(read.input_schema["additionalProperties"], false);
+        let apply = capability_descriptor("workspace.apply_latex").unwrap();
+        assert_eq!(apply.idempotency, "checkpointed_write");
+        assert_eq!(
+            apply.undo_capability.as_deref(),
+            Some("research.checkpoint.undo")
         );
     }
 

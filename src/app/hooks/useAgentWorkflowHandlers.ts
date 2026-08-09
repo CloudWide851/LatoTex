@@ -333,6 +333,7 @@ export function useAgentWorkflowHandlers(params: {
       setPage,
       setToast,
       runCompileAfterApply: runCompilePass,
+      propagateErrors: true,
       t,
     });
     return { proposalId: proposal.id, path: proposal.targetPath };

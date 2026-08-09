@@ -2,6 +2,7 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
     conn.execute_batch(
         "
         PRAGMA foreign_keys = ON;
+        BEGIN IMMEDIATE;
         CREATE TABLE IF NOT EXISTS research_metadata (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -104,6 +105,30 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
             finished_at TEXT,
             PRIMARY KEY(run_id, step_id)
         );
+        CREATE TABLE IF NOT EXISTS research_run_leases (
+            run_id TEXT PRIMARY KEY REFERENCES research_runs(run_id) ON DELETE CASCADE,
+            owner_id TEXT NOT NULL,
+            lease_token TEXT NOT NULL,
+            claimed_at TEXT NOT NULL,
+            heartbeat_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS research_change_checkpoints (
+            checkpoint_id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES research_runs(run_id) ON DELETE CASCADE,
+            step_id TEXT NOT NULL,
+            relative_path TEXT NOT NULL,
+            before_hash TEXT NOT NULL,
+            after_hash TEXT,
+            old_content_envelope TEXT NOT NULL,
+            applied_content_envelope TEXT,
+            patch_envelope TEXT,
+            status TEXT NOT NULL CHECK(status IN ('pending', 'applied', 'undone', 'conflict')),
+            created_at TEXT NOT NULL,
+            applied_at TEXT,
+            undone_at TEXT,
+            UNIQUE(run_id, step_id)
+        );
         CREATE TABLE IF NOT EXISTS research_plan_approvals (
             approval_id TEXT PRIMARY KEY,
             run_id TEXT NOT NULL REFERENCES research_runs(run_id) ON DELETE CASCADE,
@@ -161,18 +186,36 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
         CREATE INDEX IF NOT EXISTS idx_research_chat_message_session ON research_chat_messages(session_id, message_order);
         CREATE INDEX IF NOT EXISTS idx_research_resource_lock_path ON research_resource_locks(resource_path, expires_at);
         CREATE INDEX IF NOT EXISTS idx_research_runs_status ON research_runs(status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_research_run_lease_expiry ON research_run_leases(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_research_checkpoint_run ON research_change_checkpoints(run_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_research_approval_status ON research_plan_approvals(status, created_at);
         CREATE INDEX IF NOT EXISTS idx_research_evidence_task ON research_evidence_packets(task_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_research_claim_task ON research_claim_assessments(task_id, created_at);
+        COMMIT;
         ",
     )
     .map_err(|_| "research.storage.schema_failed".to_string())?;
     ensure_research_column(conn, "research_tasks", "chat_session_id", "TEXT")?;
     ensure_research_column(conn, "research_plan_versions", "title_envelope", "TEXT")?;
     ensure_research_column(conn, "research_plan_versions", "summary_envelope", "TEXT")?;
-    ensure_research_column(conn, "research_plan_versions", "assumptions_envelope", "TEXT")?;
-    ensure_research_column(conn, "research_plan_versions", "expected_artifacts_envelope", "TEXT")?;
-    ensure_research_column(conn, "research_plan_versions", "acceptance_criteria_envelope", "TEXT")?;
+    ensure_research_column(
+        conn,
+        "research_plan_versions",
+        "assumptions_envelope",
+        "TEXT",
+    )?;
+    ensure_research_column(
+        conn,
+        "research_plan_versions",
+        "expected_artifacts_envelope",
+        "TEXT",
+    )?;
+    ensure_research_column(
+        conn,
+        "research_plan_versions",
+        "acceptance_criteria_envelope",
+        "TEXT",
+    )?;
     ensure_research_column(conn, "research_chat_messages", "task_id", "TEXT")?;
     let stored_project: Option<String> = conn
         .query_row(

@@ -6,12 +6,20 @@ fn research_lock_expiry() -> String {
     (Utc::now() + chrono::Duration::seconds(RESEARCH_LOCK_TTL_SECONDS)).to_rfc3339()
 }
 
-fn cleanup_expired_research_resource_locks(conn: &Connection) -> Result<usize, String> {
+fn cleanup_expired_research_resource_locks_in(conn: &Connection) -> Result<usize, String> {
     conn.execute(
         "DELETE FROM research_resource_locks WHERE expires_at <= ?1",
         params![now_iso()],
     )
     .map_err(|_| "research.lock.cleanup_failed".to_string())
+}
+
+pub fn cleanup_expired_research_resource_locks(
+    db_path: &Path,
+    project_id: &str,
+) -> Result<usize, String> {
+    let conn = open_research_database(db_path, project_id)?;
+    cleanup_expired_research_resource_locks_in(&conn)
 }
 
 pub fn acquire_research_resource_lock(
@@ -32,7 +40,7 @@ pub fn acquire_research_resource_lock(
     let transaction = conn
         .transaction()
         .map_err(|_| "research.storage.transaction_failed".to_string())?;
-    cleanup_expired_research_resource_locks(&transaction)?;
+    cleanup_expired_research_resource_locks_in(&transaction)?;
     let conflicts: bool = transaction
         .query_row(
             "SELECT EXISTS(
@@ -82,7 +90,7 @@ pub fn heartbeat_research_resource_locks(
     run_id: &str,
 ) -> Result<usize, String> {
     let conn = open_research_database(db_path, project_id)?;
-    cleanup_expired_research_resource_locks(&conn)?;
+    cleanup_expired_research_resource_locks_in(&conn)?;
     conn.execute(
         "UPDATE research_resource_locks SET heartbeat_at = ?1, expires_at = ?2 WHERE run_id = ?3",
         params![now_iso(), research_lock_expiry(), run_id],
@@ -108,7 +116,7 @@ pub fn list_research_resource_locks(
     project_id: &str,
 ) -> Result<Vec<AgentResourceLock>, String> {
     let conn = open_research_database(db_path, project_id)?;
-    cleanup_expired_research_resource_locks(&conn)?;
+    cleanup_expired_research_resource_locks_in(&conn)?;
     let mut statement = conn
         .prepare(
             "SELECT lock_id, resource_path, mode, run_id, heartbeat_at, expires_at

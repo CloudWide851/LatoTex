@@ -2,11 +2,13 @@ use crate::models::{
     Ack, AgentResourceLock, AgentResourceLockListInput, AgentResourceLockReleaseInput,
     ClaimEvidenceAssessInput, ClaimEvidenceAssessment, ClaimEvidenceAssessmentListInput,
     EvidencePacket, EvidencePacketListInput, EvidencePacketUpsertInput, ResearchAgentRun,
-    ResearchCapabilityDescriptor, ResearchChatMigrationInput, ResearchChatMigrationResult,
-    ResearchChatStore, ResearchChatStoreReplaceInput, ResearchPlanApproval,
-    ResearchPlanApprovalResolveInput, ResearchPlanApproveInput, ResearchPlanExecuteInput,
-    ResearchPlanExecutionAccepted, ResearchPlanSaveInput, ResearchPlanVersion,
-    ResearchProjectInput, ResearchRunControlInput, ResearchRunListInput, ResearchTask,
+    ResearchCapabilityDescriptor, ResearchChangeCheckpoint, ResearchChangeCheckpointListInput,
+    ResearchChangeCheckpointUndoInput, ResearchChangeCheckpointUndoResult,
+    ResearchChatMigrationInput, ResearchChatMigrationResult, ResearchChatStore,
+    ResearchChatStoreReplaceInput, ResearchPlanApproval, ResearchPlanApprovalResolveInput,
+    ResearchPlanApproveInput, ResearchPlanExecuteInput, ResearchPlanExecutionAccepted,
+    ResearchPlanSaveInput, ResearchPlanVersion, ResearchProjectInput, ResearchRunControlInput,
+    ResearchRunListInput, ResearchRunRecoveryResponse, ResearchRunsRecoverInput, ResearchTask,
     ResearchTaskCreateInput, ResearchUiCommand, ResearchUiCommandListInput,
     ResearchUiCommandResolveInput, ResearchWorkspaceSnapshot,
 };
@@ -152,6 +154,28 @@ pub fn research_ui_command_resolve(
     state: State<'_, AppState>,
     input: ResearchUiCommandResolveInput,
 ) -> Result<ResearchPlanExecutionAccepted, String> {
+    let pending = storage::list_pending_research_ui_commands(
+        &state.db_path,
+        &state.runtime_root,
+        &input.project_id,
+    )?
+    .into_iter()
+    .find(|command| command.run_id == input.run_id && command.step_id == input.step_id)
+    .ok_or_else(|| "research.ui_command.not_pending".to_string())?;
+    if input.status == "completed"
+        && matches!(
+            pending.command,
+            crate::models::AgentAppCommand::ApplyLatexProposal { .. }
+        )
+    {
+        storage::finalize_research_change_checkpoint(
+            &state.db_path,
+            &state.runtime_root,
+            &input.project_id,
+            &input.run_id,
+            &input.step_id,
+        )?;
+    }
     let completed_steps =
         storage::resolve_research_ui_command(&state.db_path, &state.runtime_root, &input)?;
     storage::release_research_resource_locks(&state.db_path, &input.project_id, &input.run_id)?;
@@ -213,7 +237,18 @@ fn set_research_run_status(
         None,
     )?;
     if status == "cancelled" {
-        storage::release_research_resource_locks(&state.db_path, &input.project_id, &input.run_id)?;
+        if !storage::research_run_has_active_lease(
+            &state.db_path,
+            &input.project_id,
+            &input.run_id,
+        )? {
+            storage::release_research_resource_locks(
+                &state.db_path,
+                &input.project_id,
+                &input.run_id,
+            )?;
+            storage::cancel_research_run_lease(&state.db_path, &input.project_id, &input.run_id)?;
+        }
     }
     Ok(ResearchPlanExecutionAccepted {
         run_id: input.run_id.clone(),
@@ -243,6 +278,39 @@ pub fn research_run_resume(
     input: ResearchRunControlInput,
 ) -> Result<ResearchPlanExecutionAccepted, String> {
     super::research_agent_execution::resume_plan_execution(&state, &input.project_id, &input.run_id)
+}
+
+#[tauri::command]
+pub fn research_runs_recover(
+    state: State<'_, AppState>,
+    input: ResearchRunsRecoverInput,
+) -> Result<ResearchRunRecoveryResponse, String> {
+    super::research_agent_execution::recover_plan_executions(&state, &input.project_id)
+}
+
+#[tauri::command]
+pub fn research_change_checkpoint_list(
+    state: State<'_, AppState>,
+    input: ResearchChangeCheckpointListInput,
+) -> Result<Vec<ResearchChangeCheckpoint>, String> {
+    storage::list_research_change_checkpoints(
+        &state.db_path,
+        &input.project_id,
+        input.run_id.as_deref(),
+    )
+}
+
+#[tauri::command]
+pub fn research_change_checkpoint_undo(
+    state: State<'_, AppState>,
+    input: ResearchChangeCheckpointUndoInput,
+) -> Result<ResearchChangeCheckpointUndoResult, String> {
+    storage::undo_research_change_checkpoint(
+        &state.db_path,
+        &state.runtime_root,
+        &input.project_id,
+        &input.checkpoint_id,
+    )
 }
 
 #[tauri::command]

@@ -51,7 +51,9 @@ include!("storage/research_store.rs");
 include!("storage/research_store_schema.rs");
 include!("storage/research_store_operations.rs");
 include!("storage/research_resource_locks.rs");
+include!("storage/research_run_leases.rs");
 include!("storage/research_plan_runs.rs");
+include!("storage/research_change_checkpoints.rs");
 include!("storage/research_capability_audit.rs");
 include!("storage/research_ui_commands.rs");
 include!("storage/research_evidence.rs");
@@ -72,3 +74,5 @@ include!("storage/search_index_tests.rs");
 include!("storage/workspace_ops_compile_tests.rs");
 #[cfg(test)]
 include!("storage/research_store_tests.rs");
+#[cfg(test)]
+include!("storage/research_reliability_tests.rs");

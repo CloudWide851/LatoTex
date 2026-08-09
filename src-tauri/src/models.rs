@@ -800,3 +800,4 @@ include!("models_research_capability.rs");
 include!("models_research_runs.rs");
 include!("models_research_evidence.rs");
 include!("models_research_planning.rs");
+include!("models_research_recovery.rs");
