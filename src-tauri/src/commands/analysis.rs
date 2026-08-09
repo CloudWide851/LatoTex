@@ -14,6 +14,8 @@ mod analysis_academic_providers;
 mod analysis_domain_providers;
 #[path = "analysis_fulltext.rs"]
 mod analysis_fulltext;
+#[path = "analysis_publication_status.rs"]
+mod analysis_publication_status;
 #[path = "analysis_research_providers.rs"]
 mod analysis_research_providers;
 #[path = "analysis_search.rs"]
@@ -27,6 +29,7 @@ pub struct ReferenceCheckInput {
     pub queries: Vec<String>,
     pub limit: Option<u32>,
     pub project_id: Option<String>,
+    pub research_task_id: Option<String>,
     pub unpaywall_contact_email: Option<String>,
     pub research_plan: Option<AnalysisResearchPlanInput>,
     pub deep: Option<bool>,
@@ -124,6 +127,10 @@ pub struct ReferenceEvidence {
     pub evidence_level: String,
     pub provenance: Vec<String>,
     pub original_source_url: String,
+    pub fulltext_document_hash: Option<String>,
+    pub fulltext_anchors: Vec<crate::models::FulltextEvidenceAnchor>,
+    pub retraction_status: String,
+    pub correction_status: String,
     pub rrf_score: f64,
     /// Compatibility projection for existing reference-check consumers.
     pub url: String,
@@ -157,6 +164,8 @@ pub struct AcademicProviderHealth {
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceCheckItem {
     pub query: String,
+    pub query_snapshot_id: String,
+    pub stop_reason: String,
     pub ok: bool,
     pub message: String,
     /// Compatibility projection. Academic evidence is listed before general-web evidence.
@@ -293,7 +302,7 @@ pub fn reference_check(
     } else {
         input.queries
     };
-    run_reference_check_queries_for_project(
+    let response = run_reference_check_queries_for_project(
         &state.db_path,
         &state.runtime_root,
         Some(&state.app_data_dir),
@@ -302,7 +311,34 @@ pub fn reference_check(
         input.limit.unwrap_or(5),
         input.unpaywall_contact_email.as_deref(),
         input.deep.unwrap_or(false),
-    )
+    )?;
+    if let (Some(project_id), Some(task_id)) = (
+        input.project_id.as_deref(),
+        input.research_task_id.as_deref(),
+    ) {
+        for item in &response.items {
+            let sources = item
+                .provider_health
+                .iter()
+                .filter(|provider| provider.result_count > 0)
+                .map(|provider| provider.provider.clone())
+                .collect::<Vec<_>>();
+            storage::record_research_query_snapshot(
+                &state.db_path,
+                &state.runtime_root,
+                crate::models::ResearchQuerySnapshotRecordInput {
+                    project_id: project_id.to_string(),
+                    task_id: task_id.to_string(),
+                    stable_id: Some(item.query_snapshot_id.clone()),
+                    query: item.query.clone(),
+                    sources,
+                    result_count: item.academic_results.len() as u32,
+                    stop_reason: item.stop_reason.clone(),
+                },
+            )?;
+        }
+    }
+    Ok(response)
 }
 
 pub(crate) fn run_reference_check_queries_for_project(

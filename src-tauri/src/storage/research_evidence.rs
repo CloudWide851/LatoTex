@@ -51,6 +51,13 @@ pub fn upsert_evidence_packet(
     {
         return Err("research.evidence.input_invalid".to_string());
     }
+    validate_research_fulltext_anchor(
+        db_path,
+        runtime_root,
+        &input.project_id,
+        &input.locator,
+        &input.excerpt,
+    )?;
     let conn = open_research_database(db_path, &input.project_id)?;
     let task_exists: bool = conn
         .query_row(
@@ -252,93 +259,6 @@ pub fn list_evidence_packets(
     ids.into_iter()
         .map(|id| load_evidence_packet(&conn, runtime_root, project_id, &id))
         .collect()
-}
-
-fn evidence_tokens(value: &str) -> HashSet<String> {
-    value
-        .split(|ch: char| !ch.is_alphanumeric())
-        .map(|token| token.trim().to_lowercase())
-        .filter(|token| token.chars().count() >= 4)
-        .take(512)
-        .collect()
-}
-
-fn classify_claim(claim: &str, packets: &[EvidencePacket]) -> (String, String) {
-    if packets.is_empty() {
-        return (
-            "insufficient".to_string(),
-            "research.claim.no_evidence".to_string(),
-        );
-    }
-    let claim_tokens = evidence_tokens(claim);
-    if claim_tokens.is_empty() {
-        return (
-            "insufficient".to_string(),
-            "research.claim.too_vague".to_string(),
-        );
-    }
-    let eligible_packets = packets
-        .iter()
-        .filter(|packet| packet.retraction_status != "retracted")
-        .collect::<Vec<_>>();
-    if eligible_packets.is_empty() {
-        return (
-            "insufficient".to_string(),
-            "research.claim.retracted_evidence_only".to_string(),
-        );
-    }
-    let evidence_text = eligible_packets
-        .iter()
-        .map(|packet| packet.excerpt.as_str())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let combined_evidence_tokens = evidence_tokens(&evidence_text);
-    let overlap = claim_tokens.intersection(&combined_evidence_tokens).count() as f64
-        / claim_tokens.len().max(1) as f64;
-    let contradiction_markers = [
-        "contradict",
-        "not associated",
-        "no evidence",
-        "no statistically significant",
-        "no significant",
-        "did not improve",
-        "refuted",
-        "相反",
-        "无证据",
-        "无统计学显著",
-        "无显著",
-        "未改善",
-        "不支持",
-    ];
-    let contradicted = eligible_packets.iter().any(|packet| {
-        let excerpt = packet.excerpt.to_lowercase();
-        let packet_tokens = evidence_tokens(&excerpt);
-        let packet_overlap = claim_tokens.intersection(&packet_tokens).count() as f64
-            / claim_tokens.len().max(1) as f64;
-        packet_overlap >= 0.25
-            && contradiction_markers
-                .iter()
-                .any(|marker| excerpt.contains(marker))
-    });
-    if contradicted {
-        return (
-            "contradicted".to_string(),
-            "research.claim.contradicted".to_string(),
-        );
-    }
-    if overlap >= 0.6 {
-        (
-            "supported".to_string(),
-            "research.claim.supported".to_string(),
-        )
-    } else if overlap >= 0.25 {
-        ("partial".to_string(), "research.claim.partial".to_string())
-    } else {
-        (
-            "insufficient".to_string(),
-            "research.claim.insufficient".to_string(),
-        )
-    }
 }
 
 pub fn assess_claim_evidence(

@@ -392,11 +392,11 @@ pub(crate) fn resolve_ready_paper_extract_runtime(
     )
 }
 
-pub(crate) fn extract_downloaded_pdf_text(
+pub(crate) fn extract_downloaded_pdf_pages(
     runtime: &ReadyPaperExtractRuntime,
     bytes: &[u8],
-) -> Result<Option<String>, String> {
-    library_translation_paper_analysis_engine::extract_downloaded_pdf_text(runtime, bytes)
+) -> Result<Option<Vec<(u32, String)>>, String> {
+    library_translation_paper_analysis_engine::extract_downloaded_pdf_pages(runtime, bytes)
 }
 
 #[cfg(test)]

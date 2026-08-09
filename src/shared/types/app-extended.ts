@@ -330,6 +330,16 @@ export type AcademicEvidence = {
   evidenceLevel: "metadata" | "abstract" | "fulltext";
   provenance: string[];
   originalSourceUrl: string;
+  fulltextDocumentHash?: string | null;
+  fulltextAnchors?: Array<{
+    documentHash: string;
+    page: number;
+    paragraphIndex: number;
+    textHash: string;
+    excerpt: string;
+  }>;
+  retractionStatus?: "clear" | "retracted" | "corrected" | "unknown";
+  correctionStatus?: "none" | "corrected" | "expression_of_concern" | "unknown";
   rrfScore: number;
   /** Compatibility projection for existing consumers. */
   url: string;
@@ -357,6 +367,8 @@ export type AcademicProviderHealth = {
 
 export type ReferenceCheckItem = {
   query: string;
+  querySnapshotId?: string;
+  stopReason?: "result_limit" | "providers_exhausted" | "provider_degraded" | "network_disabled" | "no_results";
   ok: boolean;
   message: string;
   /** Compatibility projection; academic results are listed first. */

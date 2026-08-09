@@ -1,4 +1,5 @@
 use super::ReferenceEvidence;
+use crate::models::FulltextEvidenceAnchor;
 use crate::outbound_http::{build_public_blocking_client, OutboundProxyMode};
 use std::io::Read;
 use std::path::Path;
@@ -7,8 +8,10 @@ use std::time::Duration;
 const FULLTEXT_RESULT_LIMIT: usize = 8;
 const FULLTEXT_PARALLELISM: usize = 3;
 const FULLTEXT_PDF_BODY_LIMIT: u64 = 64 * 1024 * 1024;
-const FULLTEXT_EXCERPT_LIMIT: usize = 16_000;
+const FULLTEXT_ANCHOR_LIMIT: usize = 32;
+const FULLTEXT_ANCHOR_EXCERPT_LIMIT: usize = 1_200;
 
+#[derive(Clone, Copy)]
 pub(super) struct FulltextRuntimeContext<'a> {
     pub db_path: &'a Path,
     pub app_runtime_root: &'a Path,
@@ -32,7 +35,7 @@ fn verified_oa_pdf_candidate(evidence: &ReferenceEvidence) -> Option<&str> {
 fn fetch_fulltext(
     candidate: &str,
     pdf_runtime: Option<&crate::storage::ReadyPaperExtractRuntime>,
-) -> Option<(String, String)> {
+) -> Option<(Vec<(u32, String)>, Vec<u8>, String)> {
     let pdf_runtime = pdf_runtime?;
     let Ok((client, url, _)) = build_public_blocking_client(
         candidate,
@@ -49,6 +52,7 @@ fn fetch_fulltext(
     else {
         return None;
     };
+    let final_url = response.url().clone();
     if !response.status().is_success() {
         return None;
     }
@@ -77,34 +81,68 @@ fn fetch_fulltext(
     {
         return None;
     }
-    let text = crate::storage::extract_downloaded_pdf_text(pdf_runtime, &body)
+    let pages = crate::storage::extract_downloaded_pdf_pages(pdf_runtime, &body)
         .ok()
         .flatten()?;
+    let text = pages
+        .iter()
+        .map(|(_, text)| text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let normalized = text.to_ascii_lowercase();
     if text.chars().count() < 600
         || (normalized.contains("sign in") && normalized.contains("subscribe"))
     {
         return None;
     }
-    Some((text, url.to_string()))
+    Some((pages, body, final_url.to_string()))
 }
 
 fn enrich_one(
     mut evidence: ReferenceEvidence,
     pdf_runtime: Option<&crate::storage::ReadyPaperExtractRuntime>,
+    context: Option<FulltextRuntimeContext<'_>>,
 ) -> ReferenceEvidence {
+    let Some(context) = context else {
+        return evidence;
+    };
     let Some(candidate) = verified_oa_pdf_candidate(&evidence) else {
         return evidence;
     };
-    let Some((text, source_url)) = fetch_fulltext(candidate, pdf_runtime) else {
+    let Some((pages, pdf_bytes, source_url)) = fetch_fulltext(candidate, pdf_runtime) else {
         return evidence;
     };
-    let excerpt = text
-        .chars()
-        .take(FULLTEXT_EXCERPT_LIMIT)
-        .collect::<String>();
-    evidence.abstract_text = Some(excerpt.clone());
-    evidence.snippet = excerpt.chars().take(1_200).collect();
+    let Ok(document) = crate::storage::cache_research_fulltext_document(
+        context.db_path,
+        context.app_runtime_root,
+        context.project_id,
+        context.project_root,
+        &source_url,
+        &pdf_bytes,
+        pages,
+    ) else {
+        return evidence;
+    };
+    evidence.fulltext_document_hash = Some(document.document_hash.clone());
+    evidence.fulltext_anchors = document
+        .blocks
+        .iter()
+        .take(FULLTEXT_ANCHOR_LIMIT)
+        .map(|block| FulltextEvidenceAnchor {
+            document_hash: document.document_hash.clone(),
+            page: block.page,
+            paragraph_index: block.paragraph_index,
+            text_hash: block.text_hash.clone(),
+            excerpt: block
+                .text
+                .chars()
+                .take(FULLTEXT_ANCHOR_EXCERPT_LIMIT)
+                .collect(),
+        })
+        .collect();
+    if let Some(first) = evidence.fulltext_anchors.first() {
+        evidence.snippet = first.excerpt.clone();
+    }
     evidence.evidence_level = "fulltext".to_string();
     evidence.original_source_url = source_url;
     evidence
@@ -132,7 +170,7 @@ pub(super) fn enrich_academic_fulltext(
                 .cloned()
                 .map(|item| {
                     let pdf_runtime = pdf_runtime.as_ref();
-                    scope.spawn(move || enrich_one(item, pdf_runtime))
+                    scope.spawn(move || enrich_one(item, pdf_runtime, context))
                 })
                 .collect::<Vec<_>>()
                 .into_iter()
@@ -171,6 +209,10 @@ mod tests {
             evidence_level: "metadata".to_string(),
             provenance: vec!["fixture".to_string()],
             original_source_url: "https://publisher.example/paywalled".to_string(),
+            fulltext_document_hash: None,
+            fulltext_anchors: Vec::new(),
+            retraction_status: "unknown".to_string(),
+            correction_status: "unknown".to_string(),
             rrf_score: 0.0,
             url: "https://publisher.example/paywalled".to_string(),
             snippet: String::new(),

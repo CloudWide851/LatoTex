@@ -121,9 +121,10 @@ export function referenceCheck(
   limit = 5,
   projectId?: string,
   deep = false,
+  researchTaskId?: string,
 ): Promise<ReferenceCheckResponse> {
   return invoke<ReferenceCheckResponse>("reference_check", {
-    input: { queries, limit, projectId, deep },
+    input: { queries, limit, projectId, deep, researchTaskId },
   });
 }
 

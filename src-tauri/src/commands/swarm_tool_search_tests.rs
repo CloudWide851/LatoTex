@@ -95,6 +95,10 @@ mod tests {
                     evidence_level: "metadata".to_string(),
                     provenance: vec!["local_bib".to_string()],
                     original_source_url: "refs.bib#fixture2026".to_string(),
+                    fulltext_document_hash: None,
+                    fulltext_anchors: Vec::new(),
+                    retraction_status: "unknown".to_string(),
+                    correction_status: "unknown".to_string(),
                     rrf_score: 0.0,
                     url: "refs.bib#fixture2026".to_string(),
                     snippet: String::new(),
@@ -102,6 +106,8 @@ mod tests {
                 Ok(ReferenceCheckResponse {
                     items: vec![ReferenceCheckItem {
                         query: "reproducible local evidence".to_string(),
+                        query_snapshot_id: "query-snapshot-fixture".to_string(),
+                        stop_reason: "providers_exhausted".to_string(),
                         ok: true,
                         message: "academic.search.complete".to_string(),
                         results: vec![local.clone()],
@@ -156,6 +162,8 @@ mod tests {
                         .into_iter()
                         .map(|query| ReferenceCheckItem {
                             query,
+                            query_snapshot_id: "query-snapshot-fixture".to_string(),
+                            stop_reason: "no_results".to_string(),
                             ok: true,
                             message: "academic.search.complete".to_string(),
                             results: Vec::new(),

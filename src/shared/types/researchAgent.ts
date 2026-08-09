@@ -263,12 +263,89 @@ export type EvidencePacket = {
   sourceVersion: string | null;
   title: string;
   excerpt: string;
-  locator: { page: number | null; section: string | null; paragraph: string | null };
+  locator: {
+    page: number | null;
+    section: string | null;
+    paragraph: string | null;
+    documentHash?: string | null;
+    paragraphIndex?: number | null;
+    textHash?: string | null;
+  };
   contentHash: string;
   retractionStatus: "clear" | "retracted" | "corrected" | "unknown";
   correctionStatus: "none" | "corrected" | "expression_of_concern" | "unknown";
   sourceUrl: string;
   createdAt: string;
+};
+
+export type ResearchFulltextBlock = {
+  documentHash: string;
+  page: number;
+  paragraphIndex: number;
+  text: string;
+  textHash: string;
+};
+
+export type ResearchFulltextDocument = {
+  projectId: string;
+  documentHash: string;
+  sourceUrl: string;
+  relativePath: string;
+  byteSize: number;
+  pageCount: number;
+  blocks: ResearchFulltextBlock[];
+  createdAt: string;
+};
+
+export type ResearchReviewProtocol = {
+  taskId: string;
+  title: string;
+  researchQuestion: string;
+  inclusionCriteria: string[];
+  exclusionCriteria: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResearchQuerySnapshot = {
+  id: string;
+  taskId: string;
+  query: string;
+  sources: string[];
+  resultCount: number;
+  stopReason: "result_limit" | "providers_exhausted" | "provider_degraded" | "network_disabled" | "no_results";
+  createdAt: string;
+};
+
+export type ResearchScreeningRecord = {
+  id: string;
+  taskId: string;
+  evidenceId: string;
+  recommendation: "include" | "exclude" | "uncertain";
+  confidence: number;
+  suggestionReason: string;
+  decision: "pending" | "include" | "exclude";
+  exclusionReason: string | null;
+  fullTextReviewed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+};
+
+export type ResearchPrismaCounts = {
+  identified: number;
+  deduplicated: number;
+  screened: number;
+  excluded: number;
+  fullTextAssessed: number;
+  included: number;
+};
+
+export type ResearchReviewWorkspace = {
+  protocol: ResearchReviewProtocol | null;
+  querySnapshots: ResearchQuerySnapshot[];
+  screenings: ResearchScreeningRecord[];
+  prisma: ResearchPrismaCounts;
 };
 
 export type ClaimEvidenceAssessment = {

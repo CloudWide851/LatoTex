@@ -5,11 +5,15 @@ use crate::models::{
     ResearchCapabilityDescriptor, ResearchChangeCheckpoint, ResearchChangeCheckpointListInput,
     ResearchChangeCheckpointUndoInput, ResearchChangeCheckpointUndoResult,
     ResearchChatMigrationInput, ResearchChatMigrationResult, ResearchChatStore,
-    ResearchChatStoreReplaceInput, ResearchNetworkPolicy, ResearchNetworkPolicyUpdateInput,
-    ResearchPlanApproval, ResearchPlanApprovalResolveInput, ResearchPlanApproveInput,
-    ResearchPlanExecuteInput, ResearchPlanExecutionAccepted, ResearchPlanSaveInput,
-    ResearchPlanVersion, ResearchProjectInput, ResearchRunControlInput, ResearchRunListInput,
-    ResearchRunRecoveryResponse, ResearchRunsRecoverInput, ResearchTask, ResearchTaskCreateInput,
+    ResearchChatStoreReplaceInput, ResearchFulltextDocument, ResearchFulltextDocumentGetInput,
+    ResearchNetworkPolicy, ResearchNetworkPolicyUpdateInput, ResearchPlanApproval,
+    ResearchPlanApprovalResolveInput, ResearchPlanApproveInput, ResearchPlanExecuteInput,
+    ResearchPlanExecutionAccepted, ResearchPlanSaveInput, ResearchPlanVersion,
+    ResearchProjectInput, ResearchQuerySnapshot, ResearchQuerySnapshotRecordInput,
+    ResearchReviewProtocol, ResearchReviewProtocolSaveInput, ResearchReviewWorkspace,
+    ResearchReviewWorkspaceInput, ResearchRunControlInput, ResearchRunListInput,
+    ResearchRunRecoveryResponse, ResearchRunsRecoverInput, ResearchScreeningConfirmBatchInput,
+    ResearchScreeningRecord, ResearchScreeningSuggestInput, ResearchTask, ResearchTaskCreateInput,
     ResearchUiCommand, ResearchUiCommandListInput, ResearchUiCommandResolveInput,
     ResearchWorkspaceSnapshot,
 };
@@ -401,6 +405,59 @@ pub fn research_claim_assessment_list(
     input: ClaimEvidenceAssessmentListInput,
 ) -> Result<Vec<ClaimEvidenceAssessment>, String> {
     storage::list_claim_evidence_assessments(
+        &state.db_path,
+        &state.runtime_root,
+        &input.project_id,
+        &input.task_id,
+    )
+}
+
+#[tauri::command]
+pub fn research_fulltext_document_get(
+    state: State<'_, AppState>,
+    input: ResearchFulltextDocumentGetInput,
+) -> Result<ResearchFulltextDocument, String> {
+    storage::load_research_fulltext_document(&state.db_path, &state.runtime_root, input)
+}
+
+#[tauri::command]
+pub fn research_review_protocol_save(
+    state: State<'_, AppState>,
+    input: ResearchReviewProtocolSaveInput,
+) -> Result<ResearchReviewProtocol, String> {
+    storage::save_research_review_protocol(&state.db_path, &state.runtime_root, input)
+}
+
+#[tauri::command]
+pub fn research_review_query_snapshot_record(
+    state: State<'_, AppState>,
+    input: ResearchQuerySnapshotRecordInput,
+) -> Result<ResearchQuerySnapshot, String> {
+    storage::record_research_query_snapshot(&state.db_path, &state.runtime_root, input)
+}
+
+#[tauri::command]
+pub fn research_review_screening_suggest(
+    state: State<'_, AppState>,
+    input: ResearchScreeningSuggestInput,
+) -> Result<ResearchScreeningRecord, String> {
+    storage::suggest_research_screening(&state.db_path, &state.runtime_root, input)
+}
+
+#[tauri::command]
+pub fn research_review_screening_confirm_batch(
+    state: State<'_, AppState>,
+    input: ResearchScreeningConfirmBatchInput,
+) -> Result<ResearchReviewWorkspace, String> {
+    storage::confirm_research_screenings(&state.db_path, &state.runtime_root, input)
+}
+
+#[tauri::command]
+pub fn research_review_workspace_get(
+    state: State<'_, AppState>,
+    input: ResearchReviewWorkspaceInput,
+) -> Result<ResearchReviewWorkspace, String> {
+    storage::load_research_review_workspace(
         &state.db_path,
         &state.runtime_root,
         &input.project_id,

@@ -145,6 +145,8 @@ pub(super) fn evidence(
         .clone()
         .or_else(|| venue.clone())
         .unwrap_or_default();
+    let (retraction_status, correction_status) =
+        super::analysis_publication_status::publication_status_from_title(&title);
     ReferenceEvidence {
         stable_id,
         title,
@@ -167,6 +169,10 @@ pub(super) fn evidence(
         .to_string(),
         provenance: vec![source.to_string()],
         original_source_url: landing_url.clone(),
+        fulltext_document_hash: None,
+        fulltext_anchors: Vec::new(),
+        retraction_status,
+        correction_status,
         rrf_score: 0.0,
         url: landing_url,
         snippet,
@@ -251,7 +257,7 @@ fn parse_openalex(bytes: &[u8], limit: usize) -> Result<Vec<ReferenceEvidence>, 
                 .or_else(|| entry.get("id").and_then(Value::as_str))
                 .unwrap_or_default()
                 .to_string();
-            Some(evidence(
+            let mut result = evidence(
                 stable_id,
                 title,
                 authors,
@@ -280,7 +286,12 @@ fn parse_openalex(bytes: &[u8], limit: usize) -> Result<Vec<ReferenceEvidence>, 
                     .get("abstract_inverted_index")
                     .and_then(openalex_abstract),
                 "openalex",
-            ))
+            );
+            super::analysis_publication_status::apply_openalex_publication_status(
+                &entry,
+                &mut result,
+            );
+            Some(result)
         })
         .collect())
 }
@@ -358,7 +369,7 @@ fn parse_crossref(bytes: &[u8], limit: usize) -> Result<Vec<ReferenceEvidence>, 
                 .and_then(|link| link.get("URL"))
                 .and_then(Value::as_str)
                 .map(str::to_string);
-            Some(evidence(
+            let mut result = evidence(
                 doi.as_ref()
                     .map(|value| format!("doi:{value}"))
                     .unwrap_or_else(|| format!("crossref:{}", title.to_ascii_lowercase())),
@@ -377,7 +388,12 @@ fn parse_crossref(bytes: &[u8], limit: usize) -> Result<Vec<ReferenceEvidence>, 
                     .and_then(Value::as_str)
                     .map(strip_tags),
                 "crossref",
-            ))
+            );
+            super::analysis_publication_status::apply_crossref_publication_status(
+                &entry,
+                &mut result,
+            );
+            Some(result)
         })
         .collect())
 }

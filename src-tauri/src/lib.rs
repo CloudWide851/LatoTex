@@ -89,12 +89,15 @@ use commands::research_agent::{
     research_capability_registry, research_change_checkpoint_list, research_change_checkpoint_undo,
     research_chat_store_get, research_chat_store_migrate, research_chat_store_replace,
     research_claim_assess, research_claim_assessment_list, research_evidence_list,
-    research_evidence_upsert, research_network_policy_get, research_network_policy_update,
-    research_plan_approval_list, research_plan_approval_resolve, research_plan_approve,
-    research_plan_execute, research_plan_save, research_resource_lock_list,
-    research_resource_lock_release, research_run_cancel, research_run_list, research_run_pause,
-    research_run_resume, research_runs_recover, research_task_create, research_ui_command_list,
-    research_ui_command_resolve, research_workspace_get,
+    research_evidence_upsert, research_fulltext_document_get, research_network_policy_get,
+    research_network_policy_update, research_plan_approval_list, research_plan_approval_resolve,
+    research_plan_approve, research_plan_execute, research_plan_save, research_resource_lock_list,
+    research_resource_lock_release, research_review_protocol_save,
+    research_review_query_snapshot_record, research_review_screening_confirm_batch,
+    research_review_screening_suggest, research_review_workspace_get, research_run_cancel,
+    research_run_list, research_run_pause, research_run_resume, research_runs_recover,
+    research_task_create, research_ui_command_list, research_ui_command_resolve,
+    research_workspace_get,
 };
 use commands::runtime_assets::{
     runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
@@ -454,6 +457,12 @@ pub fn run() {
             research_evidence_list,
             research_claim_assess,
             research_claim_assessment_list,
+            research_fulltext_document_get,
+            research_review_protocol_save,
+            research_review_query_snapshot_record,
+            research_review_screening_suggest,
+            research_review_screening_confirm_batch,
+            research_review_workspace_get,
         ])
         .run(context)
         .expect("error while running tauri application");

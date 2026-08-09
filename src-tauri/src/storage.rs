@@ -58,6 +58,10 @@ include!("storage/research_change_checkpoints.rs");
 include!("storage/research_capability_audit.rs");
 include!("storage/research_ui_commands.rs");
 include!("storage/research_evidence.rs");
+include!("storage/research_claim_validation.rs");
+include!("storage/research_fulltext.rs");
+include!("storage/research_review.rs");
+include!("storage/research_review_workspace.rs");
 include!("storage/library_remote_endpoints.rs");
 include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
@@ -77,3 +81,5 @@ include!("storage/workspace_ops_compile_tests.rs");
 include!("storage/research_store_tests.rs");
 #[cfg(test)]
 include!("storage/research_reliability_tests.rs");
+#[cfg(test)]
+include!("storage/research_evidence_review_tests.rs");

@@ -275,10 +275,10 @@ pub(super) fn resolve_ready_paper_extract_runtime(
     })
 }
 
-pub(super) fn extract_downloaded_pdf_text(
+pub(super) fn extract_downloaded_pdf_pages(
     runtime: &ReadyPaperExtractRuntime,
     bytes: &[u8],
-) -> Result<Option<String>, String> {
+) -> Result<Option<Vec<(u32, String)>>, String> {
     if bytes.len() > NETWORK_PDF_BODY_LIMIT || !bytes.starts_with(b"%PDF-") {
         return Ok(None);
     }
@@ -296,22 +296,29 @@ pub(super) fn extract_downloaded_pdf_text(
     {
         return Ok(None);
     }
-    let text = extracted
-        .blocks
-        .into_iter()
-        .filter(|block| block.role != "metadata")
-        .map(|block| block.text.trim().to_string())
-        .filter(|block| !block.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    if text.chars().count() < 600 {
+    let mut pages = std::collections::BTreeMap::<u32, String>::new();
+    let mut remaining = NETWORK_PDF_TEXT_LIMIT;
+    for block in extracted.blocks {
+        if block.role == "metadata" || block.text.trim().is_empty() || remaining == 0 {
+            continue;
+        }
+        let page = block.page.unwrap_or(1).max(1);
+        let text = block.text.trim().chars().take(remaining).collect::<String>();
+        remaining = remaining.saturating_sub(text.chars().count());
+        let page_text = pages.entry(page).or_default();
+        if !page_text.is_empty() {
+            page_text.push_str("\n\n");
+        }
+        page_text.push_str(&text);
+    }
+    let usable_chars = pages
+        .values()
+        .map(|value| value.chars().count())
+        .sum::<usize>();
+    if usable_chars < 600 {
         return Ok(None);
     }
-    Ok(Some(
-        text.chars()
-            .take(NETWORK_PDF_TEXT_LIMIT)
-            .collect::<String>(),
-    ))
+    Ok(Some(pages.into_iter().collect()))
 }
 
 pub(super) fn extract_workspace_pdf_pages(
@@ -496,7 +503,7 @@ pub(super) fn extract_library_paper_context(
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_downloaded_pdf_text, ReadyPaperExtractRuntime};
+    use super::{extract_downloaded_pdf_pages, ReadyPaperExtractRuntime};
     use std::path::PathBuf;
 
     #[test]
@@ -507,7 +514,7 @@ mod tests {
             app_runtime_root: PathBuf::from("missing-app-runtime"),
         };
         assert_eq!(
-            extract_downloaded_pdf_text(&runtime, b"<html>not a pdf</html>").unwrap(),
+            extract_downloaded_pdf_pages(&runtime, b"<html>not a pdf</html>").unwrap(),
             None
         );
     }

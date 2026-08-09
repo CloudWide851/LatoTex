@@ -76,6 +76,19 @@ fn merge_evidence(current: &mut ReferenceEvidence, incoming: ReferenceEvidence, 
     current.open_access = current.open_access.or(incoming.open_access);
     current.pdf_url = current.pdf_url.take().or(incoming.pdf_url);
     current.citation_count = current.citation_count.max(incoming.citation_count);
+    if current.fulltext_document_hash.is_none() && incoming.fulltext_document_hash.is_some() {
+        current.fulltext_document_hash = incoming.fulltext_document_hash;
+        current.fulltext_anchors = incoming.fulltext_anchors;
+    }
+    if incoming.retraction_status == "retracted" {
+        current.retraction_status = incoming.retraction_status;
+    }
+    if matches!(
+        incoming.correction_status.as_str(),
+        "corrected" | "expression_of_concern"
+    ) {
+        current.correction_status = incoming.correction_status;
+    }
     if evidence_level_rank(&incoming.evidence_level) > evidence_level_rank(&current.evidence_level)
     {
         current.evidence_level = incoming.evidence_level;
@@ -288,6 +301,10 @@ fn local_bib_search(root: Option<&Path>, query: &str, limit: usize) -> Vec<Refer
                     .to_string(),
                     provenance: vec!["local_bib".to_string()],
                     original_source_url: format!("workspace:{relative}#{key}"),
+                    fulltext_document_hash: None,
+                    fulltext_anchors: Vec::new(),
+                    retraction_status: "unknown".to_string(),
+                    correction_status: "unknown".to_string(),
                     rrf_score: 0.0,
                     url: landing_url,
                     snippet: bib_field(body, "abstract").unwrap_or_default(),
@@ -336,6 +353,8 @@ pub(crate) fn run_reference_check_queries(
         if query.chars().count() > QUERY_LIMIT {
             items.push(ReferenceCheckItem {
                 query,
+                query_snapshot_id: format!("query-snapshot-{}", uuid::Uuid::new_v4().simple()),
+                stop_reason: "no_results".to_string(),
                 ok: false,
                 message: "academic.query.too_long".to_string(),
                 results: Vec::new(),
@@ -397,8 +416,21 @@ pub(crate) fn run_reference_check_queries(
         let mut results = academic_results.clone();
         results.extend(web_results.clone());
         let provider_errors = remote.failures;
+        let stop_reason = if !allow_remote_metadata {
+            "network_disabled"
+        } else if results.is_empty() {
+            "no_results"
+        } else if !provider_errors.is_empty() {
+            "provider_degraded"
+        } else if results.len() >= limit {
+            "result_limit"
+        } else {
+            "providers_exhausted"
+        };
         items.push(ReferenceCheckItem {
             query,
+            query_snapshot_id: format!("query-snapshot-{}", uuid::Uuid::new_v4().simple()),
+            stop_reason: stop_reason.to_string(),
             ok: !results.is_empty(),
             message: if results.is_empty() {
                 "academic.search.no_results"
@@ -449,6 +481,10 @@ mod tests {
             evidence_level: "metadata".to_string(),
             provenance: vec![source.to_string()],
             original_source_url: "https://example.test/item".to_string(),
+            fulltext_document_hash: None,
+            fulltext_anchors: Vec::new(),
+            retraction_status: "unknown".to_string(),
+            correction_status: "unknown".to_string(),
             rrf_score: 0.0,
             url: "https://example.test/item".to_string(),
             snippet: String::new(),
@@ -535,6 +571,10 @@ mod tests {
         .unwrap();
         assert_eq!(response.items.len(), 1);
         assert!(!response.items[0].network_used);
+        assert_eq!(response.items[0].stop_reason, "network_disabled");
+        assert!(response.items[0]
+            .query_snapshot_id
+            .starts_with("query-snapshot-"));
         assert_eq!(response.items[0].academic_results.len(), 1);
         assert_eq!(response.items[0].academic_results[0].source, "local_bib");
         let _ = std::fs::remove_dir_all(root);

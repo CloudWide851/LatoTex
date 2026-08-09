@@ -189,6 +189,55 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
             requires_unconfirmed_label INTEGER NOT NULL,
             created_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS research_fulltext_documents (
+            document_hash TEXT PRIMARY KEY,
+            source_url_envelope TEXT NOT NULL,
+            relative_path TEXT NOT NULL,
+            byte_size INTEGER NOT NULL,
+            page_count INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS research_fulltext_blocks (
+            document_hash TEXT NOT NULL REFERENCES research_fulltext_documents(document_hash) ON DELETE CASCADE,
+            page INTEGER NOT NULL,
+            paragraph_index INTEGER NOT NULL,
+            text_envelope TEXT NOT NULL,
+            text_hash TEXT NOT NULL,
+            PRIMARY KEY(document_hash, page, paragraph_index)
+        );
+        CREATE TABLE IF NOT EXISTS research_review_protocols (
+            task_id TEXT PRIMARY KEY REFERENCES research_tasks(id) ON DELETE CASCADE,
+            title_envelope TEXT NOT NULL,
+            research_question_envelope TEXT NOT NULL,
+            inclusion_criteria_envelope TEXT NOT NULL,
+            exclusion_criteria_envelope TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS research_query_snapshots (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES research_tasks(id) ON DELETE CASCADE,
+            query_envelope TEXT NOT NULL,
+            sources_json TEXT NOT NULL,
+            result_count INTEGER NOT NULL,
+            stop_reason TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS research_review_screenings (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES research_tasks(id) ON DELETE CASCADE,
+            evidence_id TEXT NOT NULL REFERENCES research_evidence_packets(id) ON DELETE CASCADE,
+            recommendation TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            suggestion_reason_envelope TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            exclusion_reason_envelope TEXT,
+            full_text_reviewed INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            decided_at TEXT,
+            UNIQUE(task_id, evidence_id)
+        );
         CREATE INDEX IF NOT EXISTS idx_research_plan_task ON research_plan_versions(task_id, version);
         CREATE INDEX IF NOT EXISTS idx_research_chat_message_session ON research_chat_messages(session_id, message_order);
         CREATE INDEX IF NOT EXISTS idx_research_resource_lock_path ON research_resource_locks(resource_path, expires_at);
@@ -198,6 +247,9 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
         CREATE INDEX IF NOT EXISTS idx_research_approval_status ON research_plan_approvals(status, created_at);
         CREATE INDEX IF NOT EXISTS idx_research_evidence_task ON research_evidence_packets(task_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_research_claim_task ON research_claim_assessments(task_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_research_fulltext_block_page ON research_fulltext_blocks(document_hash, page, paragraph_index);
+        CREATE INDEX IF NOT EXISTS idx_research_query_snapshot_task ON research_query_snapshots(task_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_research_screening_task ON research_review_screenings(task_id, decision, updated_at);
         COMMIT;
         ",
     )

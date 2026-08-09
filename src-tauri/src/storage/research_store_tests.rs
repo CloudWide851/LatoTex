@@ -367,6 +367,9 @@ mod research_store_tests {
                 page: Some(2),
                 section: Some("Results".to_string()),
                 paragraph: Some("1".to_string()),
+                document_hash: None,
+                paragraph_index: None,
+                text_hash: None,
             },
             content_hash: "fixture".to_string(),
             retraction_status: retraction_status.to_string(),
@@ -388,6 +391,32 @@ mod research_store_tests {
         let classified = classify_claim(claim, &[retracted_support]);
         assert_eq!(classified.0, "insufficient");
         assert_eq!(classified.1, "research.claim.retracted_evidence_only");
+
+        let numeric_claim = "The treatment reduced mortality by 42% in 120 participants";
+        let numeric_mismatch = packet(
+            "The treatment reduced mortality by 18% in 120 participants.",
+            "clear",
+        );
+        let classified = classify_claim(numeric_claim, &[numeric_mismatch]);
+        assert_eq!(classified.0, "contradicted");
+        assert_eq!(classified.1, "research.claim.numeric_conflict");
+
+        let numeric_missing = packet(
+            "The treatment reduced mortality in the participant cohort.",
+            "clear",
+        );
+        let classified = classify_claim(numeric_claim, &[numeric_missing]);
+        assert_eq!(classified.0, "insufficient");
+        assert_eq!(classified.1, "research.claim.numeric_missing");
+
+        let direction_claim = "The treatment improves survival in the cohort";
+        let opposite_direction = packet(
+            "The treatment decreased survival in the cohort.",
+            "clear",
+        );
+        let classified = classify_claim(direction_claim, &[opposite_direction]);
+        assert_eq!(classified.0, "contradicted");
+        assert_eq!(classified.1, "research.claim.direction_conflict");
     }
 
     #[test]
@@ -421,6 +450,9 @@ mod research_store_tests {
                     page: Some(4),
                     section: Some("Results".to_string()),
                     paragraph: Some("2".to_string()),
+                    document_hash: None,
+                    paragraph_index: None,
+                    text_hash: None,
                 },
                 retraction_status: Some("clear".to_string()),
                 correction_status: Some("none".to_string()),

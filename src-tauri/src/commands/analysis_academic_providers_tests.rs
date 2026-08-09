@@ -8,6 +8,7 @@ fn parses_openalex_fixture_with_abstract_and_provenance() {
         "doi": "https://doi.org/10.1000/Fixture",
         "title": "A Reproducible Fixture",
         "publication_year": 2026,
+        "is_retracted": true,
         "cited_by_count": 17,
         "authorships": [{"author": {"display_name": "Ada Researcher"}}],
         "primary_location": {
@@ -33,6 +34,7 @@ fn parses_openalex_fixture_with_abstract_and_provenance() {
     );
     assert_eq!(parsed[0].evidence_level, "abstract");
     assert_eq!(parsed[0].provenance, vec!["openalex"]);
+    assert_eq!(parsed[0].retraction_status, "retracted");
 }
 
 #[test]
@@ -47,6 +49,7 @@ fn parses_crossref_fixture_with_pdf_and_normalized_doi() {
           "issued": {"date-parts": [[2026, 7, 29]]},
           "URL": "https://doi.org/10.1000/FIXTURE",
           "is-referenced-by-count": 21,
+          "relation": {"update-to": [{"type": "correction"}]},
           "link": [{
             "content-type": "application/pdf",
             "URL": "https://example.test/paper.pdf"
@@ -63,6 +66,7 @@ fn parses_crossref_fixture_with_pdf_and_normalized_doi() {
         Some("https://example.test/paper.pdf")
     );
     assert_eq!(parsed[0].open_access, Some(true));
+    assert_eq!(parsed[0].correction_status, "corrected");
 }
 
 #[test]

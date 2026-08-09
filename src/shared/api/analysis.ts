@@ -20,9 +20,10 @@ export function referenceCheck(
   unpaywallContactEmail?: string,
   researchPlan?: AnalysisResearchPlan,
   deep = false,
+  researchTaskId?: string,
 ): Promise<ReferenceCheckResponse> {
   return invokeCommand<ReferenceCheckResponse>("reference_check", {
-    input: { queries, limit, projectId, unpaywallContactEmail, researchPlan, deep },
+    input: { queries, limit, projectId, unpaywallContactEmail, researchPlan, deep, researchTaskId },
   });
 }
 

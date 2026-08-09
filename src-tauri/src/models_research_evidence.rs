@@ -4,6 +4,49 @@ pub struct EvidenceLocator {
     pub page: Option<u32>,
     pub section: Option<String>,
     pub paragraph: Option<String>,
+    pub document_hash: Option<String>,
+    pub paragraph_index: Option<u32>,
+    pub text_hash: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchFulltextBlock {
+    pub document_hash: String,
+    pub page: u32,
+    pub paragraph_index: u32,
+    pub text: String,
+    pub text_hash: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchFulltextDocument {
+    pub project_id: String,
+    pub document_hash: String,
+    pub source_url: String,
+    pub relative_path: String,
+    pub byte_size: u64,
+    pub page_count: u32,
+    pub blocks: Vec<ResearchFulltextBlock>,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FulltextEvidenceAnchor {
+    pub document_hash: String,
+    pub page: u32,
+    pub paragraph_index: u32,
+    pub text_hash: String,
+    pub excerpt: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchFulltextDocumentGetInput {
+    pub project_id: String,
+    pub document_hash: String,
 }
 
 #[derive(Clone, Debug, Serialize)]

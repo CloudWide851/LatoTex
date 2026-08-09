@@ -16,6 +16,11 @@ import type {
   ResearchTask,
   ResearchRunRecoveryResponse,
   ResearchNetworkPolicy,
+  ResearchFulltextDocument,
+  ResearchQuerySnapshot,
+  ResearchReviewProtocol,
+  ResearchReviewWorkspace,
+  ResearchScreeningRecord,
   ResearchUiCommand,
   ResearchWorkspaceSnapshot,
 } from "../types/researchAgent";
@@ -274,6 +279,71 @@ export function listResearchClaimAssessments(
   taskId: string,
 ): Promise<ClaimEvidenceAssessment[]> {
   return invokeCommand<ClaimEvidenceAssessment[]>("research_claim_assessment_list", {
+    input: { projectId, taskId },
+  });
+}
+
+export function getResearchFulltextDocument(
+  projectId: string,
+  documentHash: string,
+): Promise<ResearchFulltextDocument> {
+  return invokeCommand<ResearchFulltextDocument>("research_fulltext_document_get", {
+    input: { projectId, documentHash },
+  });
+}
+
+export function saveResearchReviewProtocol(input: {
+  projectId: string;
+  taskId: string;
+  title: string;
+  researchQuestion: string;
+  inclusionCriteria: string[];
+  exclusionCriteria: string[];
+}): Promise<ResearchReviewProtocol> {
+  return invokeCommand<ResearchReviewProtocol>("research_review_protocol_save", { input });
+}
+
+export function recordResearchQuerySnapshot(input: {
+  projectId: string;
+  taskId: string;
+  stableId?: string | null;
+  query: string;
+  sources: string[];
+  resultCount: number;
+  stopReason: ResearchQuerySnapshot["stopReason"];
+}): Promise<ResearchQuerySnapshot> {
+  return invokeCommand<ResearchQuerySnapshot>("research_review_query_snapshot_record", { input });
+}
+
+export function suggestResearchScreening(input: {
+  projectId: string;
+  taskId: string;
+  evidenceId: string;
+  recommendation: ResearchScreeningRecord["recommendation"];
+  confidence: number;
+  suggestionReason: string;
+}): Promise<ResearchScreeningRecord> {
+  return invokeCommand<ResearchScreeningRecord>("research_review_screening_suggest", { input });
+}
+
+export function confirmResearchScreenings(input: {
+  projectId: string;
+  taskId: string;
+  decisions: Array<{
+    screeningId: string;
+    decision: "include" | "exclude";
+    exclusionReason?: string | null;
+    fullTextReviewed: boolean;
+  }>;
+}): Promise<ResearchReviewWorkspace> {
+  return invokeCommand<ResearchReviewWorkspace>("research_review_screening_confirm_batch", { input });
+}
+
+export function getResearchReviewWorkspace(
+  projectId: string,
+  taskId: string,
+): Promise<ResearchReviewWorkspace> {
+  return invokeCommand<ResearchReviewWorkspace>("research_review_workspace_get", {
     input: { projectId, taskId },
   });
 }
