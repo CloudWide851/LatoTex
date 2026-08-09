@@ -1,6 +1,7 @@
 use super::native_runtime_analysis_env::{
     ensure_analysis_env_blocking, resolve_analysis_runtime_root,
 };
+use super::native_runtime_analysis_spec::validate_analysis_plan;
 use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines};
 use crate::models::{AnalysisPlanInput, AnalysisRunPythonInput, AnalysisRunPythonResponse};
 use crate::state::AppState;
@@ -14,7 +15,6 @@ use uuid::Uuid;
 
 const ANALYSIS_INPUT_FILE_LIMIT: u64 = 64 * 1024 * 1024;
 const ANALYSIS_INPUT_TOTAL_LIMIT: u64 = 256 * 1024 * 1024;
-const ANALYSIS_INPUT_FILE_COUNT_LIMIT: usize = 8;
 const ANALYSIS_SUPPORTED_EXTENSIONS: [&str; 6] = ["csv", "tsv", "xlsx", "xlsm", "json", "jsonl"];
 
 #[derive(Debug, Serialize)]
@@ -46,40 +46,6 @@ fn normalize_analysis_run_key(value: &str) -> Result<String, String> {
         return Err("python.run.invalid_task_id".to_string());
     }
     Ok(normalized.to_string())
-}
-
-fn validate_analysis_plan(plan: &AnalysisPlanInput) -> Result<(), String> {
-    if plan.intent.trim().is_empty() || plan.intent.chars().count() > 16_000 {
-        return Err("analysis.plan.invalid_intent".to_string());
-    }
-    if plan.input_files.is_empty() {
-        return Err("analysis.input.missing".to_string());
-    }
-    if plan.input_files.len() > ANALYSIS_INPUT_FILE_COUNT_LIMIT {
-        return Err("analysis.input.too_many_files".to_string());
-    }
-    if !(0.0 < plan.alpha && plan.alpha < 1.0) {
-        return Err("analysis.plan.invalid_alpha".to_string());
-    }
-    if !matches!(
-        plan.missing_value_strategy.as_str(),
-        "complete_case" | "report_only"
-    ) {
-        return Err("analysis.plan.invalid_missing_strategy".to_string());
-    }
-    if plan.target_columns.len() > 32
-        || plan
-            .target_columns
-            .iter()
-            .any(|value| value.trim().is_empty() || value.chars().count() > 512)
-        || plan
-            .group_column
-            .as_ref()
-            .is_some_and(|value| value.trim().is_empty() || value.chars().count() > 512)
-    {
-        return Err("analysis.plan.invalid_columns".to_string());
-    }
-    Ok(())
 }
 
 fn hex_sha256(bytes: &[u8]) -> String {
@@ -304,7 +270,7 @@ mod tests {
     use super::{
         normalize_analysis_run_key, stage_analysis_inputs_with_limits, validate_analysis_plan,
     };
-    use crate::models::AnalysisPlanInput;
+    use crate::models::{AnalysisPlanInput, AnalysisSpecInput};
     use std::fs;
 
     fn plan(input_files: Vec<String>) -> AnalysisPlanInput {
@@ -316,6 +282,29 @@ mod tests {
             paired: Some(false),
             missing_value_strategy: "complete_case".to_string(),
             alpha: 0.05,
+            spec: Some(AnalysisSpecInput {
+                method_family: "group_comparison".to_string(),
+                outcome: Some("data.csv:outcome".to_string()),
+                predictors: Vec::new(),
+                covariates: Vec::new(),
+                group_column: Some("data.csv:group".to_string()),
+                subject_column: None,
+                time_column: None,
+                event_column: None,
+                effect_column: None,
+                standard_error_column: None,
+                glm_family: None,
+                glm_link: None,
+                missing_value_strategy: "complete_case".to_string(),
+                transformation_strategy: "none".to_string(),
+                outlier_strategy: "report_only".to_string(),
+                multiple_comparison_strategy: "benjamini_hochberg".to_string(),
+                alpha: 0.05,
+                power: None,
+                random_seed: 20260729,
+                rationale: "Compare the outcome by group".to_string(),
+                approval_confirmed: true,
+            }),
         }
     }
 

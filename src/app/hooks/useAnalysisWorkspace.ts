@@ -20,7 +20,11 @@ import {
   runAnalysisWorkspacePrompt,
   type RunAnalysisWorkspacePromptOptions,
 } from "./analysisWorkspaceRunner";
-import { applyAnalysisPreflightAnswers, buildAnalysisPreflight } from "./analysisPreflight";
+import {
+  analysisPreflightCanSubmit,
+  applyAnalysisPreflightAnswers,
+  buildAnalysisPreflight,
+} from "./analysisPreflight";
 import { shouldRunAnalysisPreflight } from "./analysisWorkspaceSources";
 
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
@@ -456,6 +460,9 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, []);
   const submitPreflight = useCallback(async () => {
     if (!preflight) {
+      return;
+    }
+    if (!analysisPreflightCanSubmit(preflight.questions, preflight.answers)) {
       return;
     }
     const resolved = applyAnalysisPreflightAnswers(preflight);

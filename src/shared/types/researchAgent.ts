@@ -1,3 +1,5 @@
+import type { AnalysisSpec } from "./analysis";
+
 export type ResearchTaskStatus =
   | "discussion"
   | "plan_pending"
@@ -184,7 +186,13 @@ export type AgentAppCommand =
   | { command: "workspace.apply_latex"; path: string; proposalId: string }
   | { command: "workspace.write_non_latex"; path: string; content: string }
   | { command: "workspace.compile"; mainPath: string }
-  | { command: "analysis.run"; prompt: string; inputFiles: string[] }
+  | {
+    command: "analysis.run";
+    prompt: string;
+    inputFiles: string[];
+    spec?: AnalysisSpec | null;
+    approvalConfirmed?: boolean;
+  }
   | { command: "report.generate"; title: string }
   | { command: "report.export"; reportId: string; format: string }
   | { command: "draw.create"; name: string }

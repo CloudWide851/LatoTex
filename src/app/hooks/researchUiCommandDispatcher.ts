@@ -95,9 +95,18 @@ export async function dispatchResearchUiCommand(
         plan: {
           intent: command.prompt,
           inputFiles: command.inputFiles,
-          targetColumns: [],
-          missingValueStrategy: "complete_case",
-          alpha: 0.05,
+          targetColumns: command.spec
+            ? [command.spec.outcome, ...command.spec.predictors].filter((value): value is string => Boolean(value))
+            : [],
+          groupColumn: command.spec?.groupColumn,
+          missingValueStrategy: command.spec?.missingValueStrategy ?? "complete_case",
+          alpha: command.spec?.alpha ?? 0.05,
+          spec: command.spec
+            ? {
+              ...command.spec,
+              approvalConfirmed: Boolean(command.approvalConfirmed),
+            }
+            : undefined,
         },
       });
     case "report.generate":

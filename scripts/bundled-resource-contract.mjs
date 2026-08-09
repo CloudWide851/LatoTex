@@ -15,6 +15,8 @@ export const REQUIRED_BUNDLED_RESOURCE_FILES = [
   "core/skills/statistical-analysis/SKILL.md",
   "core/skills/research-reproducibility/SKILL.md",
   "python/analysis_runtime/analysis_runner.py",
+  "python/analysis_runtime/analysis_runtime_core.py",
+  "python/analysis_runtime/analysis_advanced_models.py",
   "tools/cloudflared-version.json",
   "tools/cloudflared-windows-amd64.exe",
   "tools/tectonic/bundles/tlextras-2022.0r0.tar",

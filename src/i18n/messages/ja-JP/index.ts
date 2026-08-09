@@ -9,9 +9,11 @@ import { jaJP_researchWorkbench } from "./researchWorkbench";
 import { jaJP_researchAgentUi } from "./researchAgentUi";
 import { jaJP_chat } from "./chat";
 import { jaJP_skillSecurity } from "./skillSecurity";
+import { jaJP_analysis } from "./analysis";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_terminal,
+  ...jaJP_analysis,
   ...jaJP_agentControl,
   ...jaJP_research,
   ...jaJP_scientific,

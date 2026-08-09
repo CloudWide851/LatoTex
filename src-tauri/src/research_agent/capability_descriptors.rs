@@ -401,7 +401,58 @@ fn capability_input_schema(id: &str) -> Value {
             &["mainPath"],
         ),
         "analysis.run" => object_schema(
-            json!({ "prompt": string(), "inputFiles": { "type": "array", "items": path(), "maxItems": 8 } }),
+            json!({
+                "prompt": string(),
+                "inputFiles": { "type": "array", "items": path(), "maxItems": 8 },
+                "spec": {
+                    "type": "object",
+                    "properties": {
+                        "methodFamily": {
+                            "type": "string",
+                            "enum": [
+                                "descriptive", "group_comparison", "relationship",
+                                "linear_regression", "logistic_regression",
+                                "poisson_regression", "glm", "mixed_model",
+                                "survival", "time_series", "meta_analysis", "power_analysis"
+                            ]
+                        },
+                        "outcome": string(),
+                        "predictors": { "type": "array", "items": string(), "maxItems": 32 },
+                        "covariates": { "type": "array", "items": string(), "maxItems": 32 },
+                        "groupColumn": string(),
+                        "subjectColumn": string(),
+                        "timeColumn": string(),
+                        "eventColumn": string(),
+                        "effectColumn": string(),
+                        "standardErrorColumn": string(),
+                        "glmFamily": { "type": "string", "enum": ["gaussian", "binomial", "poisson"] },
+                        "glmLink": { "type": "string", "enum": ["identity", "logit", "log"] },
+                        "missingValueStrategy": { "type": "string", "enum": ["complete_case", "report_only"] },
+                        "transformationStrategy": { "type": "string", "enum": ["none", "log", "standardize"] },
+                        "outlierStrategy": { "type": "string", "enum": ["report_only", "exclude_iqr"] },
+                        "multipleComparisonStrategy": { "type": "string", "enum": ["none", "benjamini_hochberg"] },
+                        "alpha": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+                        "power": {
+                            "type": "object",
+                            "properties": {
+                                "effectSize": { "type": "number" },
+                                "targetPower": { "type": "number" },
+                                "groupRatio": { "type": "number" },
+                                "alternative": { "type": "string", "enum": ["two-sided", "larger", "smaller"] }
+                            },
+                            "required": ["effectSize", "targetPower"],
+                            "additionalProperties": false
+                        },
+                        "randomSeed": { "type": "integer", "minimum": 1 },
+                        "rationale": string()
+                    },
+                    "required": [
+                        "methodFamily", "missingValueStrategy", "transformationStrategy",
+                        "outlierStrategy", "multipleComparisonStrategy", "alpha", "randomSeed", "rationale"
+                    ],
+                    "additionalProperties": false
+                }
+            }),
             &["prompt", "inputFiles"],
         ),
         "report.generate" => object_schema(json!({ "title": string() }), &["title"]),

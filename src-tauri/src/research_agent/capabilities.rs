@@ -21,8 +21,18 @@ pub fn parse_app_command(capability: &str, input: &Value) -> Result<AgentAppComm
         .unwrap_or_else(Map::<String, Value>::new);
     let mut envelope = object;
     envelope.insert("command".to_string(), Value::String(capability.to_string()));
-    serde_json::from_value(Value::Object(envelope))
-        .map_err(|_| "research.capability.input_invalid".to_string())
+    let mut command: AgentAppCommand = serde_json::from_value(Value::Object(envelope))
+        .map_err(|_| "research.capability.input_invalid".to_string())?;
+    if let AgentAppCommand::AnalysisRun {
+        spec: Some(spec),
+        approval_confirmed,
+        ..
+    } = &mut command
+    {
+        spec.approval_confirmed = false;
+        *approval_confirmed = false;
+    }
+    Ok(command)
 }
 
 fn visit_step(
@@ -112,6 +122,53 @@ mod tests {
             apply.undo_capability.as_deref(),
             Some("research.checkpoint.undo")
         );
+
+        let mut analysis = parse_app_command(
+            "analysis.run",
+            &serde_json::json!({
+                "prompt": "Fit a model",
+                "inputFiles": ["data.csv"],
+                "approvalConfirmed": true,
+                "spec": {
+                    "methodFamily": "linear_regression",
+                    "outcome": "data.csv:y",
+                    "predictors": ["data.csv:x"],
+                    "missingValueStrategy": "complete_case",
+                    "transformationStrategy": "none",
+                    "outlierStrategy": "report_only",
+                    "multipleComparisonStrategy": "none",
+                    "alpha": 0.05,
+                    "randomSeed": 20260729,
+                    "rationale": "Estimate the adjusted relationship",
+                    "approvalConfirmed": true
+                }
+            }),
+        )
+        .unwrap();
+        assert!(analysis.requires_analysis_approval());
+        assert!(matches!(
+            &analysis,
+            AgentAppCommand::AnalysisRun {
+                approval_confirmed: false,
+                spec: Some(crate::models::AnalysisSpecInput {
+                    approval_confirmed: false,
+                    ..
+                }),
+                ..
+            }
+        ));
+        analysis.mark_analysis_approved();
+        assert!(matches!(
+            analysis,
+            AgentAppCommand::AnalysisRun {
+                approval_confirmed: true,
+                spec: Some(crate::models::AnalysisSpecInput {
+                    approval_confirmed: true,
+                    ..
+                }),
+                ..
+            }
+        ));
     }
 
     #[test]

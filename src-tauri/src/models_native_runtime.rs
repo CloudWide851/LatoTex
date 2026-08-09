@@ -136,6 +136,77 @@ fn default_analysis_alpha() -> f64 {
     0.05
 }
 
+fn default_analysis_transformation_strategy() -> String {
+    "none".to_string()
+}
+
+fn default_analysis_outlier_strategy() -> String {
+    "report_only".to_string()
+}
+
+fn default_analysis_multiple_comparison_strategy() -> String {
+    "none".to_string()
+}
+
+fn default_analysis_random_seed() -> u64 {
+    20260729
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPowerSpecInput {
+    pub effect_size: f64,
+    pub target_power: f64,
+    #[serde(default = "default_analysis_group_ratio")]
+    pub group_ratio: f64,
+    #[serde(default = "default_analysis_power_alternative")]
+    pub alternative: String,
+}
+
+fn default_analysis_group_ratio() -> f64 {
+    1.0
+}
+
+fn default_analysis_power_alternative() -> String {
+    "two-sided".to_string()
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisSpecInput {
+    pub method_family: String,
+    pub outcome: Option<String>,
+    #[serde(default)]
+    pub predictors: Vec<String>,
+    #[serde(default)]
+    pub covariates: Vec<String>,
+    pub group_column: Option<String>,
+    pub subject_column: Option<String>,
+    pub time_column: Option<String>,
+    pub event_column: Option<String>,
+    pub effect_column: Option<String>,
+    pub standard_error_column: Option<String>,
+    pub glm_family: Option<String>,
+    pub glm_link: Option<String>,
+    #[serde(default = "default_analysis_missing_value_strategy")]
+    pub missing_value_strategy: String,
+    #[serde(default = "default_analysis_transformation_strategy")]
+    pub transformation_strategy: String,
+    #[serde(default = "default_analysis_outlier_strategy")]
+    pub outlier_strategy: String,
+    #[serde(default = "default_analysis_multiple_comparison_strategy")]
+    pub multiple_comparison_strategy: String,
+    #[serde(default = "default_analysis_alpha")]
+    pub alpha: f64,
+    pub power: Option<AnalysisPowerSpecInput>,
+    #[serde(default = "default_analysis_random_seed")]
+    pub random_seed: u64,
+    #[serde(default)]
+    pub rationale: String,
+    #[serde(default)]
+    pub approval_confirmed: bool,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisPlanInput {
@@ -150,6 +221,7 @@ pub struct AnalysisPlanInput {
     pub missing_value_strategy: String,
     #[serde(default = "default_analysis_alpha")]
     pub alpha: f64,
+    pub spec: Option<AnalysisSpecInput>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

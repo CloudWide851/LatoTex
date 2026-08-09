@@ -9,9 +9,11 @@ import { esES_researchWorkbench } from "./researchWorkbench";
 import { esES_researchAgentUi } from "./researchAgentUi";
 import { esES_chat } from "./chat";
 import { esES_skillSecurity } from "./skillSecurity";
+import { esES_analysis } from "./analysis";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_terminal,
+  ...esES_analysis,
   ...esES_agentControl,
   ...esES_research,
   ...esES_scientific,

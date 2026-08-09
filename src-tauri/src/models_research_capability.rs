@@ -55,6 +55,9 @@ pub enum AgentAppCommand {
     AnalysisRun {
         prompt: String,
         input_files: Vec<String>,
+        spec: Option<AnalysisSpecInput>,
+        #[serde(default, skip_deserializing)]
+        approval_confirmed: bool,
     },
     #[serde(rename = "report.generate")]
     ReportGenerate { title: String },
@@ -97,6 +100,30 @@ pub enum AgentAppCommand {
     PluginUpdate { plugin_id: String },
     #[serde(rename = "settings.change")]
     SettingsChange { patch: serde_json::Value },
+}
+
+impl AgentAppCommand {
+    pub fn requires_analysis_approval(&self) -> bool {
+        matches!(
+            self,
+            Self::AnalysisRun {
+                spec: Some(spec),
+                ..
+            } if spec.method_family != "descriptive"
+        )
+    }
+
+    pub fn mark_analysis_approved(&mut self) {
+        if let Self::AnalysisRun {
+            spec: Some(spec),
+            approval_confirmed,
+            ..
+        } = self
+        {
+            spec.approval_confirmed = true;
+            *approval_confirmed = true;
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

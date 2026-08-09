@@ -1,6 +1,4 @@
 import argparse
-import hashlib
-import importlib.metadata
 import itertools
 import json
 import math
@@ -11,157 +9,30 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import scipy
 from scipy import stats
-import statsmodels
 from statsmodels.stats.multitest import multipletests
 from statsmodels.stats.oneway import anova_oneway
+
+from analysis_advanced_models import run_advanced_analysis
+from analysis_runtime_core import (
+    AnalysisRuntimeError,
+    file_sha256,
+    finite_or_none,
+    load_dataframe,
+    package_versions,
+    profile_dataframe,
+    resolve_column,
+    resolve_staged_path,
+    transform_numeric,
+)
 
 
 SCHEMA_VERSION = "latotex.analysis.v2"
 BOOTSTRAP_SEED = 20260729
 BOOTSTRAP_ITERATIONS = 2_000
 CONFIDENCE_LEVEL = 0.95
-MAX_PROFILE_COLUMNS = 200
 MAX_GROUPS = 12
 MAX_BOOTSTRAP_ROWS = 5_000
-
-
-class AnalysisRuntimeError(Exception):
-    def __init__(self, code: str):
-        super().__init__(code)
-        self.code = code
-
-
-def finite_or_none(value: Any) -> float | int | None:
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(numeric):
-        return None
-    return int(numeric) if numeric.is_integer() else numeric
-
-
-def package_versions() -> dict[str, str]:
-    names = ["numpy", "pandas", "scipy", "statsmodels", "openpyxl"]
-    versions: dict[str, str] = {}
-    for name in names:
-        try:
-            versions[name] = importlib.metadata.version(name)
-        except importlib.metadata.PackageNotFoundError:
-            versions[name] = "missing"
-    return versions
-
-
-def resolve_staged_path(run_root: Path, relative_path: str) -> Path:
-    normalized = str(relative_path or "").replace("\\", "/").strip()
-    if not normalized or normalized.startswith("/") or ".." in Path(normalized).parts:
-        raise AnalysisRuntimeError("analysis.runtime.invalid_staged_path")
-    resolved_root = run_root.resolve(strict=True)
-    candidate = (resolved_root / normalized).resolve(strict=True)
-    if resolved_root not in candidate.parents or not candidate.is_file():
-        raise AnalysisRuntimeError("analysis.runtime.invalid_staged_path")
-    return candidate
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        while chunk := stream.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def load_dataframe(path: Path) -> pd.DataFrame:
-    extension = path.suffix.lower()
-    if extension == ".csv":
-        frame = pd.read_csv(path, low_memory=False)
-    elif extension == ".tsv":
-        frame = pd.read_csv(path, sep="\t", low_memory=False)
-    elif extension in {".xlsx", ".xlsm"}:
-        frame = pd.read_excel(path, engine="openpyxl")
-    elif extension == ".jsonl":
-        frame = pd.read_json(path, lines=True)
-    elif extension == ".json":
-        try:
-            frame = pd.read_json(path)
-        except ValueError:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(payload, list):
-                frame = pd.DataFrame(payload)
-            elif isinstance(payload, dict):
-                frame = pd.json_normalize(payload)
-            else:
-                raise AnalysisRuntimeError("analysis.runtime.json_shape_unsupported")
-    else:
-        raise AnalysisRuntimeError("analysis.runtime.unsupported_type")
-    frame.columns = [str(column) for column in frame.columns]
-    return frame
-
-
-def numeric_profile(series: pd.Series) -> dict[str, Any]:
-    values = pd.to_numeric(series, errors="coerce")
-    valid = values.dropna()
-    result: dict[str, Any] = {
-        "count": int(valid.size),
-        "missingCount": int(values.isna().sum()),
-    }
-    if valid.empty:
-        return result
-    quartiles = valid.quantile([0.25, 0.5, 0.75])
-    q1 = float(quartiles.loc[0.25])
-    q3 = float(quartiles.loc[0.75])
-    iqr = q3 - q1
-    outliers = valid[(valid < q1 - 1.5 * iqr) | (valid > q3 + 1.5 * iqr)]
-    result.update({
-        "mean": finite_or_none(valid.mean()),
-        "std": finite_or_none(valid.std(ddof=1)),
-        "min": finite_or_none(valid.min()),
-        "q1": finite_or_none(q1),
-        "median": finite_or_none(quartiles.loc[0.5]),
-        "q3": finite_or_none(q3),
-        "max": finite_or_none(valid.max()),
-        "skewness": finite_or_none(valid.skew()),
-        "kurtosis": finite_or_none(valid.kurtosis()),
-        "iqrOutlierCount": int(outliers.size),
-    })
-    return result
-
-
-def profile_dataframe(source_path: str, frame: pd.DataFrame) -> dict[str, Any]:
-    row_count = int(len(frame.index))
-    columns = list(frame.columns)[:MAX_PROFILE_COLUMNS]
-    column_profiles = []
-    for column in columns:
-        series = frame[column]
-        missing_count = int(series.isna().sum())
-        profile: dict[str, Any] = {
-            "name": column,
-            "dtype": str(series.dtype),
-            "missingCount": missing_count,
-            "missingRate": finite_or_none(missing_count / row_count) if row_count else None,
-            "uniqueCount": int(series.nunique(dropna=True)),
-        }
-        numeric = pd.to_numeric(series, errors="coerce")
-        if numeric.notna().sum() > 0:
-            profile["numeric"] = numeric_profile(series)
-        else:
-            top = series.dropna().astype(str).value_counts().head(8)
-            profile["topValues"] = [
-                {"value": str(value)[:160], "count": int(count)}
-                for value, count in top.items()
-            ]
-        column_profiles.append(profile)
-    return {
-        "sourcePath": source_path,
-        "rows": row_count,
-        "columns": int(len(frame.columns)),
-        "duplicateRows": int(frame.duplicated().sum()),
-        "columnProfiles": column_profiles,
-        "profiledColumnCount": len(column_profiles),
-        "truncatedColumns": max(0, int(len(frame.columns)) - len(column_profiles)),
-    }
 
 
 def normality_p(values: np.ndarray) -> float | None:
@@ -179,8 +50,9 @@ def bootstrap_difference(
     right: np.ndarray,
     statistic: str,
     paired: bool = False,
+    seed: int = BOOTSTRAP_SEED,
 ) -> list[float | None]:
-    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    rng = np.random.default_rng(seed)
     left = left[:MAX_BOOTSTRAP_ROWS]
     right = right[:MAX_BOOTSTRAP_ROWS]
     estimates: list[float] = []
@@ -214,7 +86,12 @@ def hedges_g(left: np.ndarray, right: np.ndarray) -> float | None:
     return finite_or_none(correction * (np.mean(left) - np.mean(right)) / math.sqrt(pooled_variance))
 
 
-def two_group_test(left: np.ndarray, right: np.ndarray, alpha: float) -> dict[str, Any]:
+def two_group_test(
+    left: np.ndarray,
+    right: np.ndarray,
+    alpha: float,
+    seed: int = BOOTSTRAP_SEED,
+) -> dict[str, Any]:
     left_normality = normality_p(left)
     right_normality = normality_p(right)
     use_welch = (
@@ -233,7 +110,7 @@ def two_group_test(left: np.ndarray, right: np.ndarray, alpha: float) -> dict[st
             "pValue": finite_or_none(result.pvalue),
             "effect": {"name": "hedges_g", "value": hedges_g(left, right)},
             "estimateDifference": finite_or_none(np.mean(left) - np.mean(right)),
-            "confidenceInterval95": bootstrap_difference(left, right, "mean"),
+            "confidenceInterval95": bootstrap_difference(left, right, "mean", seed=seed),
             "normalityPValues": [left_normality, right_normality],
         }
     result = stats.mannwhitneyu(left, right, alternative="two-sided")
@@ -244,12 +121,17 @@ def two_group_test(left: np.ndarray, right: np.ndarray, alpha: float) -> dict[st
         "pValue": finite_or_none(result.pvalue),
         "effect": {"name": "rank_biserial", "value": finite_or_none(rank_biserial)},
         "estimateDifference": finite_or_none(np.median(left) - np.median(right)),
-        "confidenceInterval95": bootstrap_difference(left, right, "median"),
+        "confidenceInterval95": bootstrap_difference(left, right, "median", seed=seed),
         "normalityPValues": [left_normality, right_normality],
     }
 
 
-def paired_test(left: np.ndarray, right: np.ndarray, alpha: float) -> dict[str, Any]:
+def paired_test(
+    left: np.ndarray,
+    right: np.ndarray,
+    alpha: float,
+    seed: int = BOOTSTRAP_SEED,
+) -> dict[str, Any]:
     size = min(left.size, right.size)
     left = left[:size]
     right = right[:size]
@@ -278,7 +160,13 @@ def paired_test(left: np.ndarray, right: np.ndarray, alpha: float) -> dict[str, 
         "pValue": finite_or_none(p_value),
         "effect": {"name": effect_name, "value": effect},
         "estimateDifference": finite_or_none(np.mean(differences) if statistic_name == "mean" else np.median(differences)),
-        "confidenceInterval95": bootstrap_difference(left, right, statistic_name, paired=True),
+        "confidenceInterval95": bootstrap_difference(
+            left,
+            right,
+            statistic_name,
+            paired=True,
+            seed=seed,
+        ),
         "normalityPValues": [normality],
     }
 
@@ -319,23 +207,6 @@ def multi_group_test(groups: list[np.ndarray], alpha: float) -> dict[str, Any]:
     }
 
 
-def resolve_column(
-    reference: str | None,
-    datasets: list[dict[str, Any]],
-) -> tuple[dict[str, Any], str] | None:
-    normalized = str(reference or "").strip()
-    if not normalized:
-        return None
-    exact_matches = []
-    for dataset in datasets:
-        prefix = f"{dataset['sourcePath']}:"
-        if normalized.startswith(prefix) and normalized[len(prefix):] in dataset["frame"].columns:
-            return dataset, normalized[len(prefix):]
-        if normalized in dataset["frame"].columns:
-            exact_matches.append((dataset, normalized))
-    return exact_matches[0] if len(exact_matches) == 1 else None
-
-
 def benjamini_hochberg(entries: list[dict[str, Any]], alpha: float) -> list[dict[str, Any]]:
     if not entries:
         return []
@@ -351,7 +222,24 @@ def benjamini_hochberg(entries: list[dict[str, Any]], alpha: float) -> list[dict
     ]
 
 
-def group_analysis(plan: dict, datasets: list[dict[str, Any]], limitations: list[str]) -> dict[str, Any] | None:
+def exclude_iqr_rows(frame: pd.DataFrame, columns: list[str]) -> tuple[pd.DataFrame, int]:
+    if frame.empty or not columns:
+        return frame, 0
+    keep = pd.Series(True, index=frame.index)
+    for column in columns:
+        q1, q3 = frame[column].quantile([0.25, 0.75])
+        iqr = float(q3 - q1)
+        if math.isfinite(iqr) and iqr > 0:
+            keep &= (frame[column] >= q1 - 1.5 * iqr) & (frame[column] <= q3 + 1.5 * iqr)
+    return frame.loc[keep], int((~keep).sum())
+
+
+def group_analysis(
+    plan: dict,
+    datasets: list[dict[str, Any]],
+    limitations: list[str],
+    spec: dict | None = None,
+) -> dict[str, Any] | None:
     target = resolve_column((plan.get("targetColumns") or [None])[0], datasets)
     grouping = resolve_column(plan.get("groupColumn"), datasets)
     if not target or not grouping or target[0] is not grouping[0]:
@@ -360,10 +248,17 @@ def group_analysis(plan: dict, datasets: list[dict[str, Any]], limitations: list
     dataset, target_column = target
     _, group_column = grouping
     selected = dataset["frame"][[target_column, group_column]].copy()
-    selected[target_column] = pd.to_numeric(selected[target_column], errors="coerce")
+    transform_numeric(
+        selected,
+        [target_column],
+        str((spec or {}).get("transformationStrategy") or "none"),
+    )
     original_rows = int(len(selected))
     selected = selected.dropna()
-    excluded_rows = original_rows - int(len(selected))
+    missing_rows = original_rows - int(len(selected))
+    outlier_rows = 0
+    if (spec or {}).get("outlierStrategy") == "exclude_iqr":
+        selected, outlier_rows = exclude_iqr_rows(selected, [target_column])
     group_values = list(selected[group_column].astype(str).value_counts().index[:MAX_GROUPS])
     groups = [
         selected.loc[selected[group_column].astype(str) == value, target_column].to_numpy(dtype=float)
@@ -374,16 +269,17 @@ def group_analysis(plan: dict, datasets: list[dict[str, Any]], limitations: list
         limitations.append("analysis.design.insufficient_groups")
         return None
     alpha = float(plan.get("alpha") or 0.05)
+    random_seed = int((spec or {}).get("randomSeed") or BOOTSTRAP_SEED)
     if bool(plan.get("paired")) and len(groups) == 2:
-        result = paired_test(groups[0], groups[1], alpha)
+        result = paired_test(groups[0], groups[1], alpha, random_seed)
     elif len(groups) == 2:
-        result = two_group_test(groups[0], groups[1], alpha)
+        result = two_group_test(groups[0], groups[1], alpha, random_seed)
     else:
         result = multi_group_test(groups, alpha)
     pairwise = []
     if len(groups) > 2:
         for left_index, right_index in itertools.combinations(range(len(groups)), 2):
-            pair = two_group_test(groups[left_index], groups[right_index], alpha)
+            pair = two_group_test(groups[left_index], groups[right_index], alpha, random_seed)
             pairwise.append({
                 "leftGroup": group_values[left_index],
                 "rightGroup": group_values[right_index],
@@ -396,18 +292,26 @@ def group_analysis(plan: dict, datasets: list[dict[str, Any]], limitations: list
         "sourcePath": dataset["sourcePath"],
         "targetColumn": target_column,
         "groupColumn": group_column,
+        "formula": f"{target_column} ~ {group_column}",
+        "includedRows": int(len(selected)),
         "groups": [
             {"label": group_values[index], "sampleSize": int(group.size)}
             for index, group in enumerate(groups)
         ],
-        "excludedRows": excluded_rows,
+        "excludedRows": missing_rows + outlier_rows,
+        "exclusions": {"missing": missing_rows, "outlier": outlier_rows},
         "result": result,
         "pairwiseComparisons": benjamini_hochberg(pairwise, alpha),
     }
 
 
-def bootstrap_correlation(left: np.ndarray, right: np.ndarray, method: str) -> list[float | None]:
-    rng = np.random.default_rng(BOOTSTRAP_SEED)
+def bootstrap_correlation(
+    left: np.ndarray,
+    right: np.ndarray,
+    method: str,
+    seed: int = BOOTSTRAP_SEED,
+) -> list[float | None]:
+    rng = np.random.default_rng(seed)
     size = min(left.size, MAX_BOOTSTRAP_ROWS)
     left = left[:size]
     right = right[:size]
@@ -431,7 +335,12 @@ def bootstrap_correlation(left: np.ndarray, right: np.ndarray, method: str) -> l
     return [finite_or_none(low), finite_or_none(high)]
 
 
-def relationship_analysis(plan: dict, datasets: list[dict[str, Any]], limitations: list[str]) -> dict[str, Any] | None:
+def relationship_analysis(
+    plan: dict,
+    datasets: list[dict[str, Any]],
+    limitations: list[str],
+    spec: dict | None = None,
+) -> dict[str, Any] | None:
     resolved = [resolve_column(reference, datasets) for reference in plan.get("targetColumns") or []]
     resolved = [item for item in resolved if item is not None]
     if len(resolved) < 2 or any(item[0] is not resolved[0][0] for item in resolved):
@@ -439,14 +348,23 @@ def relationship_analysis(plan: dict, datasets: list[dict[str, Any]], limitation
         return None
     dataset = resolved[0][0]
     columns = [item[1] for item in resolved]
-    frame = dataset["frame"][columns].apply(pd.to_numeric, errors="coerce")
+    frame = dataset["frame"][columns].copy()
+    transform_numeric(
+        frame,
+        columns,
+        str((spec or {}).get("transformationStrategy") or "none"),
+    )
     original_rows = int(len(frame))
     frame = frame.dropna()
-    excluded_rows = original_rows - int(len(frame))
+    missing_rows = original_rows - int(len(frame))
+    outlier_rows = 0
+    if (spec or {}).get("outlierStrategy") == "exclude_iqr":
+        frame, outlier_rows = exclude_iqr_rows(frame, columns)
     if len(frame) < 3:
         limitations.append("analysis.design.insufficient_complete_rows")
         return None
     tests = []
+    random_seed = int((spec or {}).get("randomSeed") or BOOTSTRAP_SEED)
     for left_column, right_column in itertools.combinations(columns, 2):
         left = frame[left_column].to_numpy(dtype=float)
         right = frame[right_column].to_numpy(dtype=float)
@@ -461,22 +379,25 @@ def relationship_analysis(plan: dict, datasets: list[dict[str, Any]], limitation
                 "method": "pearson",
                 "coefficient": finite_or_none(pearson.statistic),
                 "pValue": finite_or_none(pearson.pvalue),
-                "confidenceInterval95": bootstrap_correlation(left, right, "pearson"),
+                "confidenceInterval95": bootstrap_correlation(left, right, "pearson", random_seed),
             },
             {
                 "columns": [left_column, right_column],
                 "method": "spearman",
                 "coefficient": finite_or_none(spearman.statistic),
                 "pValue": finite_or_none(spearman.pvalue),
-                "confidenceInterval95": bootstrap_correlation(left, right, "spearman"),
+                "confidenceInterval95": bootstrap_correlation(left, right, "spearman", random_seed),
             },
         ])
     return {
         "kind": "relationship",
         "sourcePath": dataset["sourcePath"],
         "columns": columns,
+        "formula": "correlation(" + ", ".join(columns) + ")",
         "completeRows": int(len(frame)),
-        "excludedRows": excluded_rows,
+        "includedRows": int(len(frame)),
+        "excludedRows": missing_rows + outlier_rows,
+        "exclusions": {"missing": missing_rows, "outlier": outlier_rows},
         "tests": benjamini_hochberg(tests, float(plan.get("alpha") or 0.05)),
     }
 
@@ -484,7 +405,9 @@ def relationship_analysis(plan: dict, datasets: list[dict[str, Any]], limitation
 def build_profile(payload: dict, input_path: Path) -> dict:
     plan = payload.get("plan") or {}
     staged_files = payload.get("stagedFiles") or []
-    if not staged_files:
+    spec = plan.get("spec") if isinstance(plan.get("spec"), dict) else None
+    method_family = str((spec or {}).get("methodFamily") or "")
+    if not staged_files and method_family != "power_analysis":
         raise AnalysisRuntimeError("analysis.runtime.inputs_missing")
     datasets = []
     provenance_inputs = []
@@ -512,9 +435,33 @@ def build_profile(payload: dict, input_path: Path) -> dict:
 
     limitations: list[str] = []
     missing_strategy = str(plan.get("missingValueStrategy") or "complete_case")
-    if missing_strategy == "report_only":
+    if spec and method_family != "descriptive" and not bool(spec.get("approvalConfirmed")):
+        raise AnalysisRuntimeError("analysis.runtime.approval_required")
+    if missing_strategy == "report_only" and method_family not in {"descriptive", "power_analysis"}:
         limitations.append("analysis.missing.report_only_no_inference")
         inference = None
+    elif method_family == "descriptive":
+        limitations.append("analysis.design.descriptive_only")
+        inference = None
+    elif method_family == "group_comparison":
+        spec_plan = {
+            **plan,
+            "targetColumns": [spec.get("outcome")],
+            "groupColumn": spec.get("groupColumn"),
+        }
+        inference = group_analysis(spec_plan, datasets, limitations, spec)
+    elif method_family == "relationship":
+        spec_plan = {
+            **plan,
+            "targetColumns": [
+                spec.get("outcome"),
+                *(spec.get("predictors") or []),
+                *(spec.get("covariates") or []),
+            ],
+        }
+        inference = relationship_analysis(spec_plan, datasets, limitations, spec)
+    elif spec:
+        inference = run_advanced_analysis(spec, datasets)
     elif plan.get("groupColumn") and plan.get("targetColumns"):
         inference = group_analysis(plan, datasets, limitations)
     elif len(plan.get("targetColumns") or []) >= 2:
@@ -524,11 +471,21 @@ def build_profile(payload: dict, input_path: Path) -> dict:
         inference = None
 
     exclusions = []
-    if inference and int(inference.get("excludedRows") or 0) > 0:
-        exclusions.append({
-            "reason": "missing_values_complete_case",
-            "count": int(inference["excludedRows"]),
-        })
+    if inference:
+        for reason, count in (inference.get("exclusions") or {}).items():
+            if int(count or 0) > 0:
+                exclusions.append({"reason": str(reason), "count": int(count)})
+        if not exclusions and int(inference.get("excludedRows") or 0) > 0:
+            exclusions.append({
+                "reason": "missing_values_complete_case",
+                "count": int(inference["excludedRows"]),
+            })
+    normalized_spec = {
+        **spec,
+        "approvalConfirmed": bool(spec.get("approvalConfirmed")),
+    } if spec else None
+    if inference and method_family not in {"", "descriptive", "power_analysis"}:
+        limitations.append("analysis.limitations.model_conditional")
     return {
         "schemaVersion": SCHEMA_VERSION,
         "runtimeSource": "uv",
@@ -546,6 +503,7 @@ def build_profile(payload: dict, input_path: Path) -> dict:
             "paired": plan.get("paired"),
             "missingValueStrategy": missing_strategy,
             "alpha": finite_or_none(plan.get("alpha") or 0.05),
+            "spec": normalized_spec,
         },
         "files": profiles,
         "analysis": inference or {"kind": "descriptive_only"},
@@ -554,16 +512,30 @@ def build_profile(payload: dict, input_path: Path) -> dict:
             "normalityThreshold": finite_or_none(plan.get("alpha") or 0.05),
             "completeCaseForInference": missing_strategy == "complete_case",
             "automaticImputation": False,
+            "transformationStrategy": (spec or {}).get("transformationStrategy", "none"),
+            "outlierStrategy": (spec or {}).get("outlierStrategy", "report_only"),
+            "multipleComparisonStrategy": (spec or {}).get("multipleComparisonStrategy", "none"),
+        },
+        "methodology": {
+            "methodFamily": method_family or (inference or {}).get("kind", "descriptive"),
+            "formula": (inference or {}).get("formula"),
+            "rationale": str((spec or {}).get("rationale") or plan.get("intent") or ""),
         },
         "limitations": limitations,
         "reproducibility": {
             "inputFiles": provenance_inputs,
             "pythonVersion": sys.version.split()[0],
             "packageVersions": package_versions(),
-            "bootstrapSeed": BOOTSTRAP_SEED,
+            "bootstrapSeed": int((spec or {}).get("randomSeed") or BOOTSTRAP_SEED),
             "bootstrapIterations": BOOTSTRAP_ITERATIONS,
             "confidenceLevel": CONFIDENCE_LEVEL,
             "alpha": finite_or_none(plan.get("alpha") or 0.05),
+            "steps": [
+                {"order": 1, "action": "verify_input_hashes"},
+                {"order": 2, "action": "apply_approved_data_strategies"},
+                {"order": 3, "action": "fit_approved_method"},
+                {"order": 4, "action": "review_diagnostics_and_provenance"},
+            ],
         },
         "recommendations": [
             "Treat inferential results as conditional on the explicit analysis plan.",

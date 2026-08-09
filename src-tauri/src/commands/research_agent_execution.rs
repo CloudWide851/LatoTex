@@ -237,8 +237,14 @@ fn execute_plan_inner(
         if !step_dependencies_completed(context, run_id, step)? {
             return Err("research.plan.dependency_incomplete".to_string());
         }
-        let descriptor = crate::research_agent::capability_descriptor(&step.capability)?;
-        let command = crate::research_agent::parse_app_command(&step.capability, &step.input)?;
+        let mut descriptor = crate::research_agent::capability_descriptor(&step.capability)?;
+        let mut command = crate::research_agent::parse_app_command(&step.capability, &step.input)?;
+        let analysis_approval_required = command.requires_analysis_approval();
+        if analysis_approval_required {
+            descriptor.risk_level = "high".to_string();
+            descriptor.risk_reason_key = "research.capability.risk.analysis_inference".to_string();
+            descriptor.auto_after_plan_approval = false;
+        }
         let input_summary = command_input_summary(step, &command);
         if descriptor.risk_level == "high"
             && !storage::research_step_is_approved(
@@ -279,6 +285,9 @@ fn execute_plan_inner(
                 None,
             )?;
             return Ok(());
+        }
+        if analysis_approval_required {
+            command.mark_analysis_approved();
         }
         storage::update_research_run_progress(
             &context.db_path,

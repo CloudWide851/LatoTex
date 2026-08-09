@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyAnalysisPreflightAnswers, buildAnalysisPreflight } from "./analysisPreflight";
+import {
+  analysisPreflightCanSubmit,
+  applyAnalysisPreflightAnswers,
+  buildAnalysisPreflight,
+} from "./analysisPreflight";
 import { loadDataSnapshots } from "./analysisDataSources";
 
 vi.mock("./analysisDataSources", () => ({
@@ -42,6 +46,7 @@ describe("analysis preflight plan", () => {
       "targetColumns",
       "groupColumn",
       "paired",
+      "analysisApproval",
     ]);
     const resolved = applyAnalysisPreflightAnswers({
       prompt: result.prompt,
@@ -51,6 +56,7 @@ describe("analysis preflight plan", () => {
         targetColumns: ["data.csv:outcome"],
         groupColumn: ["data.csv:group"],
         paired: ["independent"],
+        analysisApproval: ["confirmed"],
       },
     });
     expect(resolved.plan).toMatchObject({
@@ -60,6 +66,12 @@ describe("analysis preflight plan", () => {
       paired: false,
       missingValueStrategy: "complete_case",
       alpha: 0.05,
+      spec: {
+        methodFamily: "group_comparison",
+        outcome: "data.csv:outcome",
+        groupColumn: "data.csv:group",
+        approvalConfirmed: true,
+      },
     });
   });
 
@@ -86,11 +98,115 @@ describe("analysis preflight plan", () => {
       t,
     });
 
-    expect(result.questions).toHaveLength(1);
+    expect(result.questions.map((question) => question.id)).toEqual([
+      "targetColumns",
+      "analysisApproval",
+    ]);
     expect(result.questions[0]).toMatchObject({
       id: "targetColumns",
       multiple: true,
       defaultValues: ["signals.tsv:x", "signals.tsv:y"],
+    });
+    expect(result.plan.spec).toMatchObject({
+      methodFamily: "relationship",
+      outcome: "signals.tsv:x",
+      predictors: ["signals.tsv:y"],
+      approvalConfirmed: false,
+    });
+  });
+
+  it("keeps a regression spec unapproved until the confirmation card is submitted", async () => {
+    mockedLoadDataSnapshots.mockResolvedValue([{
+      path: "model.csv",
+      kind: "csv",
+      summary: "rows=40, columns=3",
+      excerpt: "outcome | exposure | age",
+      numericSeries: [
+        { label: "outcome", value: 1 },
+        { label: "exposure", value: 2 },
+        { label: "age", value: 3 },
+      ],
+    }]);
+
+    const result = await buildAnalysisPreflight({
+      projectId: "project-1",
+      prompt: "Fit a linear regression for outcome",
+      candidateFiles: ["model.csv"],
+      csvCandidateFiles: ["model.csv"],
+      t,
+    });
+
+    expect(result.questions.map((question) => question.id)).toEqual([
+      "predictorColumns",
+      "analysisApproval",
+    ]);
+    expect(result.plan.spec).toMatchObject({
+      methodFamily: "linear_regression",
+      outcome: "model.csv:outcome",
+      predictors: ["model.csv:exposure"],
+      approvalConfirmed: false,
+    });
+  });
+
+  it("builds an approved-on-submit power spec without requiring a data file", async () => {
+    const result = await buildAnalysisPreflight({
+      projectId: "project-1",
+      prompt: "Run a power analysis for the required sample size",
+      candidateFiles: [],
+      csvCandidateFiles: [],
+      t,
+    });
+
+    expect(mockedLoadDataSnapshots).not.toHaveBeenCalled();
+    expect(result.questions.map((question) => question.id)).toEqual(["analysisApproval"]);
+    expect(result.plan.spec).toMatchObject({
+      methodFamily: "power_analysis",
+      power: { effectSize: 0.5, targetPower: 0.8, groupRatio: 1 },
+      approvalConfirmed: false,
+    });
+    expect(analysisPreflightCanSubmit(result.questions, { analysisApproval: [] })).toBe(false);
+    expect(analysisPreflightCanSubmit(result.questions, {
+      analysisApproval: ["confirmed"],
+    })).toBe(true);
+    expect(applyAnalysisPreflightAnswers({
+      ...result,
+      answers: { analysisApproval: ["confirmed"] },
+    }).plan.spec?.approvalConfirmed).toBe(true);
+  });
+
+  it("keeps survival event selection separate from predictors and pairing", async () => {
+    mockedLoadDataSnapshots.mockResolvedValue([{
+      path: "survival.csv",
+      kind: "csv",
+      summary: "rows=40, columns=3",
+      excerpt: "duration | event | exposure",
+      numericSeries: [
+        { label: "duration", value: 10 },
+        { label: "event", value: 1 },
+        { label: "exposure", value: 2 },
+      ],
+    }]);
+
+    const result = await buildAnalysisPreflight({
+      projectId: "project-1",
+      prompt: "Run survival analysis for duration",
+      candidateFiles: ["survival.csv"],
+      csvCandidateFiles: ["survival.csv"],
+      t,
+    });
+
+    expect(result.questions.map((question) => question.id)).toEqual([
+      "eventColumn",
+      "predictorColumns",
+      "analysisApproval",
+    ]);
+    expect(result.questions.some((question) => question.id === "paired")).toBe(false);
+    expect(result.plan.spec).toMatchObject({
+      methodFamily: "survival",
+      outcome: "survival.csv:duration",
+      eventColumn: "survival.csv:event",
+      predictors: ["survival.csv:exposure"],
+      approvalConfirmed: false,
     });
   });
 

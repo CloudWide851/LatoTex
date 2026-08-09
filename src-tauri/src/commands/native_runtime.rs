@@ -8,6 +8,8 @@ mod native_runtime_analysis_env;
 mod native_runtime_analysis_install;
 #[path = "native_runtime_analysis_run.rs"]
 mod native_runtime_analysis_run;
+#[path = "native_runtime_analysis_spec.rs"]
+mod native_runtime_analysis_spec;
 #[path = "native_runtime_analysis_uv.rs"]
 mod native_runtime_analysis_uv;
 #[path = "native_runtime_common.rs"]

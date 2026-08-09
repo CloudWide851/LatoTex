@@ -518,6 +518,7 @@ export type PanelLayoutPrefs = {
 };
 
 export * from "./app-extended";
+export * from "./analysis";
 export * from "./analysisContext";
 export * from "./channels";
 export * from "./submissionPack";

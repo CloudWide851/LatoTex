@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "../../shared/api/workspace";
-import type { AnalysisRunPythonResponse } from "../../shared/types/app-extended";
+import type { AnalysisRunPythonResponse } from "../../shared/types/app";
 import type { PaperAnalysisContext, AnalysisSourceSnapshot } from "./analysisDataSources";
 
 const ANALYSIS_STAGE_CACHE_PATH = ".latotex/analysis/stage-cache.json";
