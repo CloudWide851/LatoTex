@@ -16,7 +16,14 @@ pub fn insert_agent_run(
 ) -> Result<(), String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let now = now_iso();
-    let request_json = serde_json::to_string(request).map_err(|e| e.to_string())?;
+    let request_json = if request.research_task_id.is_some() {
+        let mut redacted = request.clone();
+        redacted.prompt = "[encrypted-research-discussion]".to_string();
+        redacted.context_refs.clear();
+        serde_json::to_string(&redacted).map_err(|e| e.to_string())?
+    } else {
+        serde_json::to_string(request).map_err(|e| e.to_string())?
+    };
     conn.execute(
         "INSERT INTO agent_runs (
             run_id, project_id, workflow_id, callsite, request_json, status,
@@ -174,6 +181,7 @@ mod agent_runs_tests {
             harness_profile_id: None,
             profile_id: None,
             graph_template_id: None,
+            research_task_id: None,
         }
     }
 
@@ -192,6 +200,25 @@ mod agent_runs_tests {
         assert_eq!(record.status, "cancelled");
 
         let _ = std::fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn research_planning_run_metadata_redacts_the_discussion_prompt() {
+        let db_path = temp_db_path("research-planning-redaction");
+        initialize_database(&db_path).unwrap();
+        let mut request = sample_request("project-1");
+        request.workflow_id = "research-plan-discussion".to_string();
+        request.callsite = "research.workbench".to_string();
+        request.prompt = "Sensitive unpublished research hypothesis".to_string();
+        request.research_task_id = Some("task-1".to_string());
+
+        insert_agent_run(&db_path, "run-planning", &request).unwrap();
+        let stored = get_agent_run_record(&db_path, "run-planning")
+            .unwrap()
+            .unwrap();
+
+        assert!(!stored.request_json.contains("Sensitive unpublished"));
+        assert!(stored.request_json.contains("encrypted-research-discussion"));
     }
 
     #[test]

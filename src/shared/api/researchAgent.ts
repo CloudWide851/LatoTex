@@ -1,4 +1,5 @@
 import { invokeCommand } from "./core";
+import { executeWorkflowStart } from "./agent";
 import type {
   ClaimEvidenceAssessment,
   AgentResourceLock,
@@ -30,9 +31,34 @@ export function getResearchWorkspace(projectId: string): Promise<ResearchWorkspa
   });
 }
 
-export function createResearchTask(projectId: string, goal: string): Promise<ResearchTask> {
+export function createResearchTask(
+  projectId: string,
+  goal: string,
+  chatSessionId?: string | null,
+): Promise<ResearchTask> {
   return invokeCommand<ResearchTask>("research_task_create", {
-    input: { projectId, goal },
+    input: { projectId, goal, chatSessionId: chatSessionId ?? null },
+  });
+}
+
+export function startResearchPlanningWorkflow(input: {
+  projectId: string;
+  taskId: string;
+  prompt: string;
+  modelOverride?: string;
+}) {
+  return executeWorkflowStart({
+    projectId: input.projectId,
+    workflowId: "research-plan-discussion",
+    callsite: "research.workbench",
+    prompt: input.prompt,
+    contextRefs: [],
+    modelOverride: input.modelOverride,
+    bypassCache: true,
+    teamMode: "off",
+    harnessProfileId: "research.planning",
+    profileId: "builtin-planner",
+    researchTaskId: input.taskId,
   });
 }
 
@@ -41,6 +67,11 @@ export function saveResearchPlan(input: {
   taskId: string;
   sourceMessage: string;
   authorizedProjectIds: string[];
+  title?: string;
+  summary?: string;
+  assumptions?: string[];
+  expectedArtifacts?: string[];
+  acceptanceCriteria?: string[];
   steps: Array<{
     id?: string;
     enabled: boolean;

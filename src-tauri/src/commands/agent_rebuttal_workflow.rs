@@ -93,6 +93,7 @@ fn start_rebuttal_workflow(
             harness_profile_id: None,
             profile_id: None,
             graph_template_id: None,
+            research_task_id: None,
         },
     )
 }

@@ -14,12 +14,26 @@ const api = vi.hoisted(() => ({
   getResearchWorkspace: vi.fn(),
   listResearchRuns: vi.fn(),
   saveResearchPlan: vi.fn(),
+  startResearchPlanningWorkflow: vi.fn(),
   listResearchEvidence: vi.fn(),
   listResearchClaimAssessments: vi.fn(),
   assessResearchClaim: vi.fn(),
 }));
 
 vi.mock("../../../shared/api/researchAgent", () => api);
+
+const chatStore = vi.hoisted(() => ({
+  loadChatStore: vi.fn(),
+  newChatSession: vi.fn(),
+  saveChatStoreAndWait: vi.fn(),
+}));
+
+const runWait = vi.hoisted(() => ({
+  waitForRunOutputWithPolicy: vi.fn(),
+}));
+
+vi.mock("../../hooks/chatSessionStore", () => chatStore);
+vi.mock("../../hooks/runEventWait", () => runWait);
 
 const REGISTRY: ResearchCapabilityDescriptor[] = [
   {
@@ -58,6 +72,21 @@ describe("ResearchAgentWorkbench", () => {
     api.listResearchRuns.mockResolvedValue([]);
     api.listResearchEvidence.mockResolvedValue([]);
     api.listResearchClaimAssessments.mockResolvedValue([]);
+    api.startResearchPlanningWorkflow.mockResolvedValue({ runId: "planning-run-1", status: "accepted" });
+    runWait.waitForRunOutputWithPolicy.mockResolvedValue("I prepared a reviewable plan.");
+    chatStore.newChatSession.mockReturnValue({
+      id: "chat-1",
+      title: "Verify the central claim",
+      createdAt: "2026-08-07T00:00:00Z",
+      updatedAt: "2026-08-07T00:00:00Z",
+      messages: [],
+    });
+    chatStore.loadChatStore.mockReturnValue({ sessions: [], activeSessionId: null });
+    chatStore.saveChatStoreAndWait.mockImplementation(async (_projectId, sessions, activeSessionId) => {
+      const stored = { sessions, activeSessionId };
+      chatStore.loadChatStore.mockReturnValue(stored);
+      return stored;
+    });
     api.createResearchTask.mockResolvedValue({
       id: "task-1",
       projectId: "project-1",
@@ -65,6 +94,7 @@ describe("ResearchAgentWorkbench", () => {
       status: "discussion",
       currentPlanVersion: null,
       runIds: [],
+      chatSessionId: "chat-1",
       createdAt: "2026-08-07T00:00:00Z",
       updatedAt: "2026-08-07T00:00:00Z",
     });
@@ -75,6 +105,11 @@ describe("ResearchAgentWorkbench", () => {
       sourceMessage: "Verify the central claim",
       approvalStatus: "draft",
       authorizedProjectIds: ["project-1"],
+      title: "Evidence review",
+      summary: "Validate the claim",
+      assumptions: [],
+      expectedArtifacts: [],
+      acceptanceCriteria: [],
       steps: [],
       createdAt: "2026-08-07T00:00:00Z",
       approvedAt: null,
@@ -87,7 +122,7 @@ describe("ResearchAgentWorkbench", () => {
     vi.clearAllMocks();
   });
 
-  it("creates a persisted editable plan before any execution can start", async () => {
+  it("starts model-backed planning without creating a deterministic fallback plan", async () => {
     await act(async () => {
       root.render(<ResearchAgentWorkbench projectId="project-1" t={(key) => String(key)} />);
     });
@@ -104,16 +139,17 @@ describe("ResearchAgentWorkbench", () => {
       .find((button) => button.textContent?.includes("research.workbench.createPlan"));
     await act(async () => createButton?.click());
 
-    expect(api.createResearchTask).toHaveBeenCalledWith("project-1", "Verify the central claim");
-    expect(api.saveResearchPlan).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.createResearchTask).toHaveBeenCalledWith(
+      "project-1",
+      "Verify the central claim",
+      "chat-1",
+    );
+    expect(api.startResearchPlanningWorkflow).toHaveBeenCalledWith({
       projectId: "project-1",
       taskId: "task-1",
-      authorizedProjectIds: ["project-1"],
-      steps: expect.arrayContaining([
-        expect.objectContaining({ capability: "project.overview", riskLevel: "read" }),
-        expect.objectContaining({ capability: "literature.search", riskLevel: "read" }),
-      ]),
-    }));
+      prompt: "Verify the central claim",
+    });
+    expect(api.saveResearchPlan).not.toHaveBeenCalled();
     expect(api.executeResearchPlan).not.toHaveBeenCalled();
   });
 });

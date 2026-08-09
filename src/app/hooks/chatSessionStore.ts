@@ -10,6 +10,7 @@ export type ChatMessage = {
   text: string;
   createdAt: string;
   runId?: string | null;
+  taskId?: string | null;
 };
 
 export type ChatSession = {
@@ -144,6 +145,7 @@ function sanitizeMessage(raw: unknown): ChatMessage | null {
     text,
     createdAt: typeof source.createdAt === "string" ? source.createdAt : nowIso(),
     runId: typeof source.runId === "string" && source.runId.trim() ? source.runId : null,
+    taskId: typeof source.taskId === "string" && source.taskId.trim() ? source.taskId : null,
   };
 }
 
@@ -187,6 +189,29 @@ export function saveChatStore(
     migrationCompleted: true,
     diagnosticCode: null,
   }).catch(() => undefined);
+}
+
+export async function saveChatStoreAndWait(
+  projectId: string,
+  sessions: ChatSession[],
+  activeSessionId: string | null,
+): Promise<ChatStorePayload> {
+  const payload: ChatStorePayload = {
+    sessions: sessions.slice(-80),
+    activeSessionId,
+  };
+  const persisted = await replaceResearchChatStore(projectId, {
+    ...payload,
+    migrationCompleted: true,
+    diagnosticCode: null,
+  });
+  const verified = {
+    sessions: persisted.sessions,
+    activeSessionId: persisted.activeSessionId,
+  };
+  chatStoreCache.set(projectId, verified);
+  emitChatStoreChanged({ projectId, ...verified });
+  return verified;
 }
 
 export async function hydrateChatStore(projectId: string): Promise<ChatStorePayload> {

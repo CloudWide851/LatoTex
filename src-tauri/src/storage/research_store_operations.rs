@@ -25,6 +25,41 @@ pub fn load_research_plan_version(
         .ok_or_else(|| "research.plan.not_found".to_string())
 }
 
+pub fn ensure_research_task_exists(
+    db_path: &Path,
+    project_id: &str,
+    task_id: &str,
+) -> Result<(), String> {
+    validate_research_id(task_id)?;
+    let conn = open_research_database(db_path, project_id)?;
+    let exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM research_tasks WHERE id = ?1)",
+            params![task_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "research.storage.query_failed".to_string())?;
+    if exists {
+        Ok(())
+    } else {
+        Err("research.task.not_found".to_string())
+    }
+}
+
+pub fn load_research_task(
+    db_path: &Path,
+    runtime_root: &Path,
+    project_id: &str,
+    task_id: &str,
+) -> Result<ResearchTask, String> {
+    validate_research_id(task_id)?;
+    let conn = open_research_database(db_path, project_id)?;
+    load_research_tasks_from(&conn, runtime_root, project_id)?
+        .into_iter()
+        .find(|task| task.id == task_id)
+        .ok_or_else(|| "research.task.not_found".to_string())
+}
+
 pub fn create_research_task(
     db_path: &Path,
     runtime_root: &Path,
@@ -35,15 +70,21 @@ pub fn create_research_task(
         return Err("research.task.goal_invalid".to_string());
     }
     let conn = open_research_database(db_path, &input.project_id)?;
+    let chat_session_id = input
+        .chat_session_id
+        .as_deref()
+        .map(validate_research_id)
+        .transpose()?
+        .map(str::to_string);
     let id = format!("task-{}", Uuid::new_v4().simple());
     let now = now_iso();
     let encrypted_goal =
         seal_research_json(runtime_root, &input.project_id, "task", &id, "goal", &goal)?;
     conn.execute(
         "INSERT INTO research_tasks
-         (id, goal_envelope, status, current_plan_version, run_ids_json, created_at, updated_at)
-         VALUES (?1, ?2, 'discussion', NULL, '[]', ?3, ?3)",
-        params![id, encrypted_goal, now],
+         (id, goal_envelope, status, current_plan_version, run_ids_json, chat_session_id, created_at, updated_at)
+         VALUES (?1, ?2, 'discussion', NULL, '[]', ?3, ?4, ?4)",
+        params![id, encrypted_goal, chat_session_id, now],
     )
     .map_err(|_| "research.storage.write_failed".to_string())?;
     Ok(ResearchTask {
@@ -53,6 +94,7 @@ pub fn create_research_task(
         status: "discussion".to_string(),
         current_plan_version: None,
         run_ids: Vec::new(),
+        chat_session_id,
         created_at: now.clone(),
         updated_at: now,
     })
@@ -139,18 +181,50 @@ pub fn save_research_plan(
         "authorized-projects",
         &authorized,
     )?;
+    let title_envelope = seal_research_json(
+        runtime_root, &input.project_id, "plan", &plan_id, "title", &input.title,
+    )?;
+    let summary_envelope = seal_research_json(
+        runtime_root, &input.project_id, "plan", &plan_id, "summary", &input.summary,
+    )?;
+    let assumptions_envelope = seal_research_json(
+        runtime_root, &input.project_id, "plan", &plan_id, "assumptions", &input.assumptions,
+    )?;
+    let expected_artifacts_envelope = seal_research_json(
+        runtime_root,
+        &input.project_id,
+        "plan",
+        &plan_id,
+        "expected-artifacts",
+        &input.expected_artifacts,
+    )?;
+    let acceptance_criteria_envelope = seal_research_json(
+        runtime_root,
+        &input.project_id,
+        "plan",
+        &plan_id,
+        "acceptance-criteria",
+        &input.acceptance_criteria,
+    )?;
     transaction
         .execute(
             "INSERT INTO research_plan_versions
              (id, task_id, version, source_message_envelope, approval_status,
-              authorized_projects_envelope, created_at)
-             VALUES (?1, ?2, ?3, ?4, 'draft', ?5, ?6)",
+              authorized_projects_envelope, title_envelope, summary_envelope,
+              assumptions_envelope, expected_artifacts_envelope,
+              acceptance_criteria_envelope, created_at)
+             VALUES (?1, ?2, ?3, ?4, 'draft', ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 plan_id,
                 input.task_id,
                 version,
                 source_message,
                 authorized_envelope,
+                title_envelope,
+                summary_envelope,
+                assumptions_envelope,
+                expected_artifacts_envelope,
+                acceptance_criteria_envelope,
                 created_at,
             ],
         )
@@ -235,6 +309,11 @@ pub fn save_research_plan(
         source_message: input.source_message,
         approval_status: "draft".to_string(),
         authorized_project_ids: authorized,
+        title: input.title,
+        summary: input.summary,
+        assumptions: input.assumptions,
+        expected_artifacts: input.expected_artifacts,
+        acceptance_criteria: input.acceptance_criteria,
         steps,
         created_at,
         approved_at: None,

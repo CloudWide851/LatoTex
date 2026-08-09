@@ -30,6 +30,7 @@ function session(): ChatSession {
         text: "Sensitive manuscript claim",
         createdAt: "2026-08-07T00:00:30Z",
         runId: null,
+        taskId: null,
       },
     ],
   };

@@ -31,6 +31,7 @@ mod research_store_tests {
                     text: "Confidential manuscript observation".to_string(),
                     created_at: "2026-08-07T00:00:30Z".to_string(),
                     run_id: Some("run-1".to_string()),
+                    task_id: Some("task-linked".to_string()),
                 }],
             }],
             active_session_id: Some("chat-session-1".to_string()),
@@ -49,6 +50,7 @@ mod research_store_tests {
             ResearchTaskCreateInput {
                 project_id: project_id.clone(),
                 goal: "Private oncology hypothesis".to_string(),
+                chat_session_id: Some("chat-session-1".to_string()),
             },
         )
         .unwrap();
@@ -60,6 +62,11 @@ mod research_store_tests {
                 task_id: task.id.clone(),
                 source_message: "Develop a reproducible plan".to_string(),
                 authorized_project_ids: vec![project_id.clone()],
+                title: "Reproducible oncology plan".to_string(),
+                summary: "Find and validate evidence".to_string(),
+                assumptions: vec!["Local project scope only".to_string()],
+                expected_artifacts: vec!["Evidence summary".to_string()],
+                acceptance_criteria: vec!["Every claim is traceable".to_string()],
                 steps: vec![ResearchPlanStepDraft {
                     id: Some("search-evidence".to_string()),
                     enabled: true,
@@ -174,6 +181,7 @@ mod research_store_tests {
             ResearchTaskCreateInput {
                 project_id: first_project.summary.id.clone(),
                 goal: "Only visible in project one".to_string(),
+                chat_session_id: None,
             },
         )
         .unwrap();
@@ -229,6 +237,7 @@ mod research_store_tests {
             ResearchTaskCreateInput {
                 project_id: project_id.clone(),
                 goal: "Open the literature workspace".to_string(),
+                chat_session_id: None,
             },
         )
         .unwrap();
@@ -240,6 +249,11 @@ mod research_store_tests {
                 task_id: task.id.clone(),
                 source_message: "Navigate after approval".to_string(),
                 authorized_project_ids: vec![project_id.clone()],
+                title: String::new(),
+                summary: String::new(),
+                assumptions: Vec::new(),
+                expected_artifacts: Vec::new(),
+                acceptance_criteria: Vec::new(),
                 steps: vec![ResearchPlanStepDraft {
                     id: Some("open-literature".to_string()),
                     enabled: true,
@@ -386,6 +400,7 @@ mod research_store_tests {
             ResearchTaskCreateInput {
                 project_id: project_id.clone(),
                 goal: "Validate a biomarker claim".to_string(),
+                chat_session_id: None,
             },
         )
         .unwrap();

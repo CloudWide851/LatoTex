@@ -8,6 +8,7 @@ import { esES_pluginAgents } from "./pluginAgents";
 import { esES_researchWorkbench } from "./researchWorkbench";
 import { esES_researchAgentUi } from "./researchAgentUi";
 import { esES_chat } from "./chat";
+import { esES_skillSecurity } from "./skillSecurity";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_terminal,
@@ -19,25 +20,7 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_researchWorkbench,
   ...esES_researchAgentUi,
   ...esES_chat,
-  "settings.agentSkillsTitle": "Skills de investigación",
-  "settings.agentSkillsHint": "La guía validada se carga solo en flujos relevantes de literatura y análisis de datos.",
-  "settings.skillCustomDescription": "Guía personalizada desde un directorio aprobado de Skills de Codex o Agent.",
-  "settings.skillSourceBuiltIn": "Incluido",
-  "settings.skillSourceCustom": "Personalizado",
-  "settings.skillEnabled": "Activado",
-  "settings.skillHide": "Ocultar",
-  "settings.skillRemove": "Eliminar",
-  "settings.skill_validation_manifest_too_large": "SKILL.md supera el límite de 64 KiB.",
-  "settings.skill_validation_signature_mismatch": "El SKILL.md incluido no coincide con el catálogo firmado.",
-  "settings.skill_validation_path_escape": "La ruta usa un enlace o sale de la raíz aprobada.",
-  "settings.skill_validation_name_mismatch": "El nombre del manifiesto debe coincidir con el id del directorio.",
-  "settings.skill_validation_invalid_utf8": "SKILL.md debe ser texto UTF-8 válido.",
-  "settings.skill_validation_restricted_frontmatter": "El front matter no puede cambiar herramientas, permisos, aprobaciones ni el harness.",
-  "share.showPassword": "Mostrar contraseña",
-  "share.hidePassword": "Ocultar contraseña",
-  "share.passwordHidden": "Contraseña oculta",
-  "share.passwordUnavailable": "Contraseña no disponible",
-  "share.passwordRevealFailed": "No se pudo obtener la contraseña. Actualiza la sesión e inténtalo de nuevo.",
+  ...esES_skillSecurity,
   "analysis.envPromptUvSource": "Origen de uv",
   "analysis.preflight.groupTitle": "¿Qué columna define los grupos?",
   "analysis.step.loadContext": "Cargar el contexto citado del espacio de trabajo",

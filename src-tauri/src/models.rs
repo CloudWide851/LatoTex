@@ -432,6 +432,8 @@ pub struct AgentExecuteRequest {
     pub harness_profile_id: Option<String>,
     pub profile_id: Option<String>,
     pub graph_template_id: Option<String>,
+    #[serde(default)]
+    pub research_task_id: Option<String>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -797,3 +799,4 @@ include!("models_research_agent.rs");
 include!("models_research_capability.rs");
 include!("models_research_runs.rs");
 include!("models_research_evidence.rs");
+include!("models_research_planning.rs");

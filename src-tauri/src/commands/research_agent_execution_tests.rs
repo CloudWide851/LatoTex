@@ -23,6 +23,11 @@ fn execution_order_respects_dependencies_after_user_reordering() {
         source_message: "Research".to_string(),
         approval_status: "approved".to_string(),
         authorized_project_ids: vec!["project-1".to_string()],
+        title: "Research plan".to_string(),
+        summary: "Dependency order test".to_string(),
+        assumptions: Vec::new(),
+        expected_artifacts: Vec::new(),
+        acceptance_criteria: Vec::new(),
         steps: vec![
             step("synthesis", vec!["search".to_string()]),
             step("search", Vec::new()),

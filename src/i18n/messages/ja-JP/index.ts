@@ -8,6 +8,7 @@ import { jaJP_pluginAgents } from "./pluginAgents";
 import { jaJP_researchWorkbench } from "./researchWorkbench";
 import { jaJP_researchAgentUi } from "./researchAgentUi";
 import { jaJP_chat } from "./chat";
+import { jaJP_skillSecurity } from "./skillSecurity";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_terminal,
@@ -19,25 +20,7 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_researchWorkbench,
   ...jaJP_researchAgentUi,
   ...jaJP_chat,
-  "settings.agentSkillsTitle": "研究 Skills",
-  "settings.agentSkillsHint": "検証済みの研究ガイダンスは、関連する文献・データ分析ワークフローでのみ読み込まれます。",
-  "settings.skillCustomDescription": "承認済みの Codex または Agent Skill ディレクトリにあるカスタム研究ガイダンスです。",
-  "settings.skillSourceBuiltIn": "同梱",
-  "settings.skillSourceCustom": "カスタム",
-  "settings.skillEnabled": "有効",
-  "settings.skillHide": "非表示",
-  "settings.skillRemove": "削除",
-  "settings.skill_validation_manifest_too_large": "SKILL.md が 64 KiB の上限を超えています。",
-  "settings.skill_validation_signature_mismatch": "同梱 SKILL.md が署名済みカタログと一致しません。",
-  "settings.skill_validation_path_escape": "Skill パスがリンクを使用しているか、承認済みルート外です。",
-  "settings.skill_validation_name_mismatch": "manifest の name はディレクトリ ID と一致する必要があります。",
-  "settings.skill_validation_invalid_utf8": "SKILL.md は有効な UTF-8 テキストである必要があります。",
-  "settings.skill_validation_restricted_frontmatter": "front matter はツール、権限、承認、Agent harness を変更できません。",
-  "share.showPassword": "パスワードを表示",
-  "share.hidePassword": "パスワードを隠す",
-  "share.passwordHidden": "パスワードは非表示です",
-  "share.passwordUnavailable": "パスワードを利用できません",
-  "share.passwordRevealFailed": "パスワードを取得できませんでした。セッションを更新して再試行してください。",
+  ...jaJP_skillSecurity,
   "analysis.envPromptUvSource": "uv の取得元",
   "analysis.preflight.groupTitle": "グループを定義する列はどれですか？",
   "analysis.step.loadContext": "参照されたワークスペースのコンテキストを読み込む",

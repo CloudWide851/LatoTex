@@ -7,6 +7,7 @@ pub struct ResearchTask {
     pub status: String,
     pub current_plan_version: Option<i64>,
     pub run_ids: Vec<String>,
+    pub chat_session_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -34,6 +35,11 @@ pub struct ResearchPlanVersion {
     pub source_message: String,
     pub approval_status: String,
     pub authorized_project_ids: Vec<String>,
+    pub title: String,
+    pub summary: String,
+    pub assumptions: Vec<String>,
+    pub expected_artifacts: Vec<String>,
+    pub acceptance_criteria: Vec<String>,
     pub steps: Vec<ResearchPlanStep>,
     pub created_at: String,
     pub approved_at: Option<String>,
@@ -47,6 +53,7 @@ pub struct ResearchChatMessage {
     pub text: String,
     pub created_at: String,
     pub run_id: Option<String>,
+    pub task_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -79,6 +86,7 @@ pub struct ResearchProjectInput {
 pub struct ResearchTaskCreateInput {
     pub project_id: String,
     pub goal: String,
+    pub chat_session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,6 +107,16 @@ pub struct ResearchPlanSaveInput {
     pub task_id: String,
     pub source_message: String,
     pub authorized_project_ids: Vec<String>,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub assumptions: Vec<String>,
+    #[serde(default)]
+    pub expected_artifacts: Vec<String>,
+    #[serde(default)]
+    pub acceptance_criteria: Vec<String>,
     pub steps: Vec<ResearchPlanStepDraft>,
 }
 

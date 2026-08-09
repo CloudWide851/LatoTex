@@ -31,6 +31,7 @@ export function executeWorkflowStart(input: {
   harnessProfileId?: string;
   profileId?: string;
   graphTemplateId?: string;
+  researchTaskId?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -45,6 +46,7 @@ export function executeWorkflowStart(input: {
       harnessProfileId: input.harnessProfileId,
       profileId: input.profileId,
       graphTemplateId: input.graphTemplateId,
+      researchTaskId: input.researchTaskId,
     },
   });
 }

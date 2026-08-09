@@ -10,7 +10,14 @@ import {
   getResearchWorkspace,
   listResearchRuns,
   saveResearchPlan,
+  startResearchPlanningWorkflow,
 } from "../../../shared/api/researchAgent";
+import {
+  loadChatStore,
+  newChatSession,
+  saveChatStoreAndWait,
+} from "../../hooks/chatSessionStore";
+import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import type {
   ResearchAgentRun,
   ResearchCapabilityDescriptor,
@@ -21,7 +28,6 @@ import type {
 import { ResearchEvidenceLedger } from "./ResearchEvidenceLedger";
 import { ResearchPlanEditor } from "./ResearchPlanEditor";
 import {
-  buildStarterResearchPlan,
   editableStepsFromPlan,
   parseEditableResearchPlanSteps,
   type EditableResearchPlanStep,
@@ -56,6 +62,7 @@ export function ResearchAgentWorkbench(props: {
   const [busyAction, setBusyAction] = useState("");
   const [errorKey, setErrorKey] = useState<MessageKey | "">("");
   const [noticeKey, setNoticeKey] = useState<MessageKey | "">("");
+  const [planningReply, setPlanningReply] = useState("");
   const [dirty, setDirty] = useState(false);
   const [evidenceRefreshToken, setEvidenceRefreshToken] = useState(0);
   const actionRef = useRef("");
@@ -82,6 +89,7 @@ export function ResearchAgentWorkbench(props: {
         ? preferred
         : nextSnapshot.tasks[0]?.id ?? "";
     });
+    return nextSnapshot;
   }, [projectId]);
 
   useEffect(() => {
@@ -127,7 +135,7 @@ export function ResearchAgentWorkbench(props: {
     setDirty(false);
   }, [selectedPlan?.id, selectedPlan?.version]);
 
-  const runAction = async (action: string, work: () => Promise<void>) => {
+  const runAction = async (action: string, work: () => Promise<unknown>) => {
     if (actionRef.current) return;
     actionRef.current = action;
     setBusyAction(action);
@@ -136,9 +144,14 @@ export function ResearchAgentWorkbench(props: {
     try {
       await work();
     } catch (error) {
+      const diagnostic = error instanceof Error ? error.message : String(error);
       setErrorKey(error instanceof SyntaxError
         ? "research.workbench.inputInvalid"
-        : "research.workbench.error");
+        : diagnostic.includes("research.planning.model_unavailable")
+          ? "research.workbench.modelUnavailable"
+          : diagnostic.includes("research.planning.envelope_invalid")
+            ? "research.workbench.planInvalid"
+            : "research.workbench.error");
     } finally {
       actionRef.current = "";
       setBusyAction("");
@@ -149,21 +162,54 @@ export function ResearchAgentWorkbench(props: {
     const goal = goalDraft.trim();
     if (!projectId || !goal) return;
     void runAction("create", async () => {
-      const task = await createResearchTask(projectId, goal);
-      const starterSteps = buildStarterResearchPlan(goal, registry);
-      if (starterSteps.length === 0) {
-        throw new Error("research.capability.registry_empty");
-      }
-      await saveResearchPlan({
+      const session = newChatSession(goal);
+      const task = await createResearchTask(projectId, goal, session.id);
+      const userMessage = {
+        id: `msg-${crypto.randomUUID()}`,
+        role: "user" as const,
+        text: goal,
+        createdAt: new Date().toISOString(),
+        runId: null,
+        taskId: task.id,
+      };
+      const loaded = loadChatStore(projectId);
+      await saveChatStoreAndWait(
+        projectId,
+        [{ ...session, messages: [userMessage] }, ...loaded.sessions],
+        session.id,
+      );
+      setGoalDraft("");
+      const accepted = await startResearchPlanningWorkflow({
         projectId,
         taskId: task.id,
-        sourceMessage: goal,
-        authorizedProjectIds: [projectId],
-        steps: parseEditableResearchPlanSteps(starterSteps),
+        prompt: goal,
       });
-      setGoalDraft("");
-      await refresh(task.id);
-      setNoticeKey("research.workbench.planCreated");
+      const assistantMessage = await waitForRunOutputWithPolicy({
+        runId: accepted.runId,
+        totalTimeoutMs: 8 * 60_000,
+        inactivityTimeoutMs: 2 * 60_000,
+      });
+      const current = loadChatStore(projectId);
+      const sessions = current.sessions.map((item) => item.id === session.id
+        ? {
+            ...item,
+            updatedAt: new Date().toISOString(),
+            messages: [...item.messages, {
+              id: `msg-${crypto.randomUUID()}`,
+              role: "assistant" as const,
+              text: assistantMessage,
+              createdAt: new Date().toISOString(),
+              runId: accepted.runId,
+              taskId: task.id,
+            }],
+          }
+        : item);
+      await saveChatStoreAndWait(projectId, sessions, session.id);
+      setPlanningReply(assistantMessage);
+      const nextSnapshot = await refresh(task.id);
+      setNoticeKey(nextSnapshot?.plans.some((plan) => plan.taskId === task.id)
+        ? "research.workbench.planCreated"
+        : "research.workbench.clarificationReady");
     });
   };
 
@@ -175,6 +221,11 @@ export function ResearchAgentWorkbench(props: {
         taskId: selectedTask.id,
         sourceMessage: selectedTask.goal,
         authorizedProjectIds: [projectId],
+        title: selectedPlan?.title,
+        summary: selectedPlan?.summary,
+        assumptions: selectedPlan?.assumptions,
+        expectedArtifacts: selectedPlan?.expectedArtifacts,
+        acceptanceCriteria: selectedPlan?.acceptanceCriteria,
         steps: parseEditableResearchPlanSteps(steps),
       });
       await refresh(selectedTask.id);
@@ -264,7 +315,7 @@ export function ResearchAgentWorkbench(props: {
               placeholder={t("research.workbench.goalPlaceholder")}
             />
           </label>
-          <Button className="mt-2 w-full" size="sm" disabled={busy || !goalDraft.trim() || registry.length === 0} onClick={createTaskAndPlan}>
+          <Button className="mt-2 w-full" size="sm" disabled={busy || !goalDraft.trim()} onClick={createTaskAndPlan}>
             {tasks.length === 0 ? <Sparkles className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
             {t("research.workbench.createPlan")}
           </Button>
@@ -274,6 +325,11 @@ export function ResearchAgentWorkbench(props: {
       <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
         {errorKey ? <div className="app-status-danger rounded-md border px-3 py-2 text-xs" role="alert">{t(errorKey)}</div> : null}
         {noticeKey ? <div className="app-status-success rounded-md border px-3 py-2 text-xs" role="status">{t(noticeKey)}</div> : null}
+        {planningReply ? (
+          <div className="app-material-panel rounded-lg border px-4 py-3 text-sm leading-6 text-[color:var(--app-fg)]" role="status">
+            {planningReply}
+          </div>
+        ) : null}
         {selectedTask ? (
           <ResearchPlanEditor
             goal={selectedTask.goal}

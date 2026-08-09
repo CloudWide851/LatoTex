@@ -7,6 +7,10 @@ use std::sync::Arc;
 use std::thread;
 use uuid::Uuid;
 
+use super::research_planning::{
+    is_research_planning_request, preflight_research_planning_model, run_research_planning,
+    validate_research_planning_request,
+};
 use super::swarm_events::{append_protocol_event, run_envelope, EventMetadata};
 use super::swarm_executor::run_execute_pipeline_async;
 use super::swarm_harness::{
@@ -239,16 +243,27 @@ fn launch_agent_worker(
                 &error,
             );
         } else {
-            let result = run_execute_pipeline_async(
-                db_path.clone(),
-                runtime_root,
-                app_data_dir,
-                session_log_path,
-                run_id.clone(),
-                cancel_flag,
-                input,
-                workflow,
-            );
+            let result = if is_research_planning_request(&input) {
+                run_research_planning(
+                    &db_path,
+                    &runtime_root,
+                    &run_id,
+                    &cancel_flag,
+                    &input,
+                    &workflow,
+                )
+            } else {
+                run_execute_pipeline_async(
+                    db_path.clone(),
+                    runtime_root,
+                    app_data_dir,
+                    session_log_path,
+                    run_id.clone(),
+                    cancel_flag,
+                    input,
+                    workflow,
+                )
+            };
             match result {
                 Ok(output) => terminalize_run(
                     &db_path,
@@ -332,7 +347,17 @@ pub fn agent_execute_start(
     let workflow = resolve_workflow(&registry, &input.workflow_id)?.clone();
     validate_invocation(&workflow, &input.callsite, &input.context_refs)?;
     validate_step_tools(&workflow)?;
-    let selection = storage::resolve_agent_execution_selection(&state.db_path, &input)?;
+    validate_research_planning_request(&state.db_path, &input)?;
+    let selection = if is_research_planning_request(&input) {
+        let profile = storage::get_agent_profile(&state.db_path, "builtin-planner")?
+            .ok_or_else(|| "agent.profile.not_found".to_string())?;
+        storage::AgentExecutionSelection {
+            profile,
+            graph_template: None,
+        }
+    } else {
+        storage::resolve_agent_execution_selection(&state.db_path, &input)?
+    };
     input.profile_id = Some(selection.profile.id.clone());
     input.graph_template_id = selection
         .graph_template
@@ -348,6 +373,12 @@ pub fn agent_execute_start(
         input.model_override = selection.profile.model_id.clone();
     }
     let harnessed_input = prepare_harnessed_input(&input, &workflow, &selection.profile);
+    preflight_research_planning_model(
+        &state.db_path,
+        &state.runtime_root,
+        &harnessed_input,
+        &workflow,
+    )?;
     let preflight = preflight_permissions(
         &state.db_path,
         &state.runtime_root,

@@ -93,6 +93,15 @@ fn profile_for_id(id: &str) -> Option<AgentHarnessProfile> {
             acceptance_rubric: "Responses should be concise, actionable, and explicit about uncertainty.",
             team_policy: HarnessTeamPolicy::ComplexOnly,
         }),
+        "research.planning" => Some(AgentHarnessProfile {
+            id: "research.planning",
+            title: "Research Planning Contract",
+            identity: "You are a scientific research planner. Decide whether the user's current goal needs clarification, is ready for a bounded executable plan, or is blocked by a concrete prerequisite.",
+            context_policy: "Use only the discussion supplied in the user request. Do not infer access to project files, paper full text, credentials, or unstated datasets.",
+            tool_policy: "Return exactly one JSON object and no markdown. decision must be clarify, ready, or blocked. assistantMessage must be non-empty. clarify may include at most five questions and no plan. ready must include a plan with title, summary, steps, expectedArtifacts, and acceptanceCriteria. Each step must use a registered AgentAppCommand capability and contain id, enabled, dependencies, capability, and input. blocked must not include a plan.",
+            acceptance_rubric: "Name assumptions explicitly, keep dependencies acyclic, request the minimum clarification needed, and never generate shell commands, JavaScript, click coordinates, absolute paths, or unregistered capabilities.",
+            team_policy: HarnessTeamPolicy::Never,
+        }),
         "git.summary" => Some(AgentHarnessProfile {
             id: "git.summary",
             title: "Git Summary Agent",
@@ -124,6 +133,7 @@ fn default_profile_id(workflow_id: &str, callsite: &str) -> &'static str {
         ("latex.rebuttal_reply", _) => "latex.rebuttal",
         ("latex.paper_analyze", _) => "paper.analyst",
         ("analysis.explore_chunk", _) | ("analysis.synthesize", _) => "analysis.research",
+        ("research-plan-discussion", "research.workbench") => "research.planning",
         ("git.summary", _) | (_, "git.summary") => "git.summary",
         ("completion.latex", _) | (_, "completion.inline") => "latex.completion",
         (_, "chat.workspace") => "chat.workspace",
@@ -217,6 +227,7 @@ mod tests {
             harness_profile_id: None,
             profile_id: None,
             graph_template_id: None,
+            research_task_id: None,
         }
     }
 

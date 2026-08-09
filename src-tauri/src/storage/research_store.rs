@@ -51,6 +51,20 @@ fn open_research_json<T: DeserializeOwned>(
     serde_json::from_slice(&bytes).map_err(|_| "research.storage.decrypt_decode_failed".to_string())
 }
 
+fn open_optional_research_json<T: DeserializeOwned + Default>(
+    runtime_root: &Path,
+    project_id: &str,
+    entity: &str,
+    id: &str,
+    field: &str,
+    value: Option<String>,
+) -> Result<T, String> {
+    match value {
+        Some(value) => open_research_json(runtime_root, project_id, entity, id, field, &value),
+        None => Ok(T::default()),
+    }
+}
+
 fn validate_research_id(value: &str) -> Result<&str, String> {
     let trimmed = value.trim();
     if trimmed.is_empty()
@@ -91,7 +105,8 @@ fn load_research_tasks_from(
 ) -> Result<Vec<ResearchTask>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT id, goal_envelope, status, current_plan_version, run_ids_json, created_at, updated_at
+            "SELECT id, goal_envelope, status, current_plan_version, run_ids_json,
+                    chat_session_id, created_at, updated_at
              FROM research_tasks ORDER BY updated_at DESC",
         )
         .map_err(|_| "research.storage.query_failed".to_string())?;
@@ -103,14 +118,15 @@ fn load_research_tasks_from(
                 row.get::<_, String>(2)?,
                 row.get::<_, Option<i64>>(3)?,
                 row.get::<_, String>(4)?,
-                row.get::<_, String>(5)?,
+                row.get::<_, Option<String>>(5)?,
                 row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
             ))
         })
         .map_err(|_| "research.storage.query_failed".to_string())?;
     let mut tasks = Vec::new();
     for row in rows {
-        let (id, goal, status, current_plan_version, run_ids, created_at, updated_at) =
+        let (id, goal, status, current_plan_version, run_ids, chat_session_id, created_at, updated_at) =
             row.map_err(|_| "research.storage.query_failed".to_string())?;
         tasks.push(ResearchTask {
             goal: open_research_json(runtime_root, project_id, "task", &id, "goal", &goal)?,
@@ -120,6 +136,7 @@ fn load_research_tasks_from(
             current_plan_version,
             run_ids: serde_json::from_str(&run_ids)
                 .map_err(|_| "research.storage.metadata_invalid".to_string())?,
+            chat_session_id,
             created_at,
             updated_at,
         });
@@ -190,7 +207,9 @@ fn load_research_plans_from(
     let mut statement = conn
         .prepare(
             "SELECT id, task_id, version, source_message_envelope, approval_status,
-                    authorized_projects_envelope, created_at, approved_at
+                    authorized_projects_envelope, title_envelope, summary_envelope,
+                    assumptions_envelope, expected_artifacts_envelope,
+                    acceptance_criteria_envelope, created_at, approved_at
              FROM research_plan_versions ORDER BY created_at DESC",
         )
         .map_err(|_| "research.storage.query_failed".to_string())?;
@@ -203,15 +222,33 @@ fn load_research_plans_from(
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
-                row.get::<_, String>(6)?,
+                row.get::<_, Option<String>>(6)?,
                 row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<String>>(10)?,
+                row.get::<_, String>(11)?,
+                row.get::<_, Option<String>>(12)?,
             ))
         })
         .map_err(|_| "research.storage.query_failed".to_string())?;
     let mut plans = Vec::new();
     for row in rows {
-        let (id, task_id, version, source, approval_status, authorized, created_at, approved_at) =
-            row.map_err(|_| "research.storage.query_failed".to_string())?;
+        let (
+            id,
+            task_id,
+            version,
+            source,
+            approval_status,
+            authorized,
+            title,
+            summary,
+            assumptions,
+            expected_artifacts,
+            acceptance_criteria,
+            created_at,
+            approved_at,
+        ) = row.map_err(|_| "research.storage.query_failed".to_string())?;
         plans.push(ResearchPlanVersion {
             source_message: open_research_json(
                 runtime_root,
@@ -228,6 +265,21 @@ fn load_research_plans_from(
                 &id,
                 "authorized-projects",
                 &authorized,
+            )?,
+            title: open_optional_research_json(
+                runtime_root, project_id, "plan", &id, "title", title,
+            )?,
+            summary: open_optional_research_json(
+                runtime_root, project_id, "plan", &id, "summary", summary,
+            )?,
+            assumptions: open_optional_research_json(
+                runtime_root, project_id, "plan", &id, "assumptions", assumptions,
+            )?,
+            expected_artifacts: open_optional_research_json(
+                runtime_root, project_id, "plan", &id, "expected-artifacts", expected_artifacts,
+            )?,
+            acceptance_criteria: open_optional_research_json(
+                runtime_root, project_id, "plan", &id, "acceptance-criteria", acceptance_criteria,
             )?,
             steps: load_plan_steps_from(conn, runtime_root, project_id, &id)?,
             id,
@@ -286,7 +338,7 @@ fn load_chat_store_from(
             row.map_err(|_| "research.storage.query_failed".to_string())?;
         let mut message_statement = conn
             .prepare(
-                "SELECT id, role, text_envelope, created_at, run_id
+                "SELECT id, role, text_envelope, created_at, run_id, task_id
                  FROM research_chat_messages WHERE session_id = ?1 ORDER BY message_order",
             )
             .map_err(|_| "research.storage.query_failed".to_string())?;
@@ -298,12 +350,13 @@ fn load_chat_store_from(
                     message_row.get::<_, String>(2)?,
                     message_row.get::<_, String>(3)?,
                     message_row.get::<_, Option<String>>(4)?,
+                    message_row.get::<_, Option<String>>(5)?,
                 ))
             })
             .map_err(|_| "research.storage.query_failed".to_string())?;
         let mut messages = Vec::new();
         for message in message_rows {
-            let (message_id, role, text, message_created_at, run_id) =
+            let (message_id, role, text, message_created_at, run_id, task_id) =
                 message.map_err(|_| "research.storage.query_failed".to_string())?;
             messages.push(crate::models::ResearchChatMessage {
                 text: open_research_json(
@@ -318,6 +371,7 @@ fn load_chat_store_from(
                 role,
                 created_at: message_created_at,
                 run_id,
+                task_id,
             });
         }
         sessions.push(ResearchChatSession {
@@ -359,6 +413,9 @@ fn validate_chat_store(store: &ResearchChatStore) -> Result<(), String> {
             }
             if message.text.len() > MAX_TASK_GOAL_BYTES {
                 return Err("research.chat.limit_exceeded".to_string());
+            }
+            if let Some(task_id) = message.task_id.as_deref() {
+                validate_research_id(task_id)?;
             }
         }
     }
@@ -403,8 +460,8 @@ fn replace_chat_store_in(
             transaction
                 .execute(
                     "INSERT INTO research_chat_messages
-                     (id, session_id, message_order, role, text_envelope, created_at, run_id)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    (id, session_id, message_order, role, text_envelope, created_at, run_id, task_id)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
                         message.id,
                         session.id,
@@ -413,6 +470,7 @@ fn replace_chat_store_in(
                         text,
                         message.created_at,
                         message.run_id,
+                        message.task_id,
                     ],
                 )
                 .map_err(|_| "research.storage.write_failed".to_string())?;

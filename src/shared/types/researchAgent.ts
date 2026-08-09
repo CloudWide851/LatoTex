@@ -15,6 +15,7 @@ export type ResearchTask = {
   status: ResearchTaskStatus;
   currentPlanVersion: number | null;
   runIds: string[];
+  chatSessionId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -38,6 +39,11 @@ export type ResearchPlanVersion = {
   sourceMessage: string;
   approvalStatus: "draft" | "approved" | "superseded";
   authorizedProjectIds: string[];
+  title: string;
+  summary: string;
+  assumptions: string[];
+  expectedArtifacts: string[];
+  acceptanceCriteria: string[];
   steps: ResearchPlanStep[];
   createdAt: string;
   approvedAt: string | null;
@@ -49,6 +55,29 @@ export type ResearchChatMessage = {
   text: string;
   createdAt: string;
   runId?: string | null;
+  taskId?: string | null;
+};
+
+export type ResearchPlanningDecision = "clarify" | "ready" | "blocked";
+
+export type ResearchPlanningQuestion = {
+  id: string;
+  prompt: string;
+  rationale: string;
+  choices: string[];
+};
+
+export type ResearchPlanningEvent = {
+  protocol: "json";
+  schema: "research-planning-envelope.v1";
+  runId: string;
+  taskId: string;
+  decision: ResearchPlanningDecision;
+  assistantMessage: string;
+  questions: ResearchPlanningQuestion[];
+  assumptions: string[];
+  planId: string | null;
+  planVersion: number | null;
 };
 
 export type ResearchChatSession = {

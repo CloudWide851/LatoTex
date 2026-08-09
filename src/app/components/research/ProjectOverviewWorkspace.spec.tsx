@@ -37,6 +37,7 @@ const TASK: ResearchTask = {
   status: "plan_pending",
   currentPlanVersion: 1,
   runIds: [],
+  chatSessionId: null,
   createdAt: "2026-08-07T00:00:00Z",
   updatedAt: "2026-08-07T00:00:00Z",
 };

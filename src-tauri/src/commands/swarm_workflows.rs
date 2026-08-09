@@ -184,6 +184,12 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 &["readonly"],
             ),
             provider(
+                "research-plan-discussion",
+                "Research Plan Discussion",
+                &["research.workbench"],
+                &["readonly"],
+            ),
+            provider(
                 "completion.latex",
                 "Completion",
                 &["completion.inline"],

@@ -1,3 +1,5 @@
+#[path = "research_planning.rs"]
+mod research_planning;
 #[path = "swarm_events.rs"]
 mod swarm_events;
 #[path = "swarm_executor.rs"]

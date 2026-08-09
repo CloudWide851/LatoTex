@@ -1,4 +1,4 @@
-fn agent_callsite_specs() -> [(&'static str, &'static str, Option<&'static str>); 3] {
+fn agent_callsite_specs() -> [(&'static str, &'static str, Option<&'static str>); 4] {
     [
         (
             "latex.overlay",
@@ -15,6 +15,7 @@ fn agent_callsite_specs() -> [(&'static str, &'static str, Option<&'static str>)
             "builtin-researcher",
             Some("builtin-research-workflow"),
         ),
+        ("research.workbench", "builtin-planner", None),
     ]
 }
 

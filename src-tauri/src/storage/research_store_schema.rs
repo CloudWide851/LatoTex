@@ -12,6 +12,7 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
             status TEXT NOT NULL,
             current_plan_version INTEGER,
             run_ids_json TEXT NOT NULL DEFAULT '[]',
+            chat_session_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -22,6 +23,11 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
             source_message_envelope TEXT NOT NULL,
             approval_status TEXT NOT NULL,
             authorized_projects_envelope TEXT NOT NULL,
+            title_envelope TEXT,
+            summary_envelope TEXT,
+            assumptions_envelope TEXT,
+            expected_artifacts_envelope TEXT,
+            acceptance_criteria_envelope TEXT,
             created_at TEXT NOT NULL,
             approved_at TEXT,
             UNIQUE(task_id, version)
@@ -57,7 +63,8 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
             role TEXT NOT NULL,
             text_envelope TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            run_id TEXT
+            run_id TEXT,
+            task_id TEXT
         );
         CREATE TABLE IF NOT EXISTS research_migrations (
             id TEXT PRIMARY KEY,
@@ -160,6 +167,13 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
         ",
     )
     .map_err(|_| "research.storage.schema_failed".to_string())?;
+    ensure_research_column(conn, "research_tasks", "chat_session_id", "TEXT")?;
+    ensure_research_column(conn, "research_plan_versions", "title_envelope", "TEXT")?;
+    ensure_research_column(conn, "research_plan_versions", "summary_envelope", "TEXT")?;
+    ensure_research_column(conn, "research_plan_versions", "assumptions_envelope", "TEXT")?;
+    ensure_research_column(conn, "research_plan_versions", "expected_artifacts_envelope", "TEXT")?;
+    ensure_research_column(conn, "research_plan_versions", "acceptance_criteria_envelope", "TEXT")?;
+    ensure_research_column(conn, "research_chat_messages", "task_id", "TEXT")?;
     let stored_project: Option<String> = conn
         .query_row(
             "SELECT value FROM research_metadata WHERE key = 'project_id'",
@@ -179,5 +193,30 @@ fn ensure_research_schema(conn: &Connection, project_id: &str) -> Result<(), Str
         )
         .map_err(|_| "research.storage.metadata_failed".to_string())?;
     }
+    Ok(())
+}
+
+fn ensure_research_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<(), String> {
+    let mut statement = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(|_| "research.storage.schema_failed".to_string())?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|_| "research.storage.schema_failed".to_string())?;
+    for existing in columns {
+        if existing.map_err(|_| "research.storage.schema_failed".to_string())? == column {
+            return Ok(());
+        }
+    }
+    conn.execute(
+        &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+        [],
+    )
+    .map_err(|_| "research.storage.schema_failed".to_string())?;
     Ok(())
 }
