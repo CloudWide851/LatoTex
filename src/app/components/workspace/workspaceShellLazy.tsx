@@ -48,6 +48,7 @@ export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps,
         settings={props.settings}
         onOpenAgentControl={() => props.onPageChange("agents")}
         onOpenAgentTerminal={props.onOpenAgentTerminal}
+        onOpenWorkspacePage={props.onPageChange}
         t={props.t}
       />
     </Suspense>

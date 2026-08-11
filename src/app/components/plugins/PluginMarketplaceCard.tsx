@@ -1,4 +1,14 @@
-import { AlertTriangle, Download, Info, Power, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  Info,
+  MoreHorizontal,
+  Power,
+  Search,
+} from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import type {
@@ -21,8 +31,35 @@ import {
   runtimeSourceLabel,
   type TranslationFn,
 } from "./pluginMarketplaceUtils";
+import {
+  resolvePluginPrimaryAction,
+  type PluginOpenTarget,
+  type PluginPrimaryAction,
+} from "./pluginPrimaryAction";
 
 type RuntimeAction = "install" | "verify" | "remove";
+
+type SecondaryAction = {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  run: () => void;
+};
+
+function primaryActionIcon(action: PluginPrimaryAction) {
+  if (action.kind === "validation") return AlertTriangle;
+  if (action.kind === "enable") return Power;
+  if (action.kind === "open") return ExternalLink;
+  if (action.kind === "toolchain-detect") return Search;
+  if (action.kind === "built-in" || action.kind === "ready") return CheckCircle2;
+  if (action.kind === "agent-runtime" && action.runtimeAction === "detect") return Search;
+  if (action.kind === "agent-runtime" && action.runtimeAction === "select") return Search;
+  if (action.kind === "agent-runtime" && action.runtimeAction === "enable") return Power;
+  if (action.kind === "agent-runtime" && ["profiles", "terminal"].includes(action.runtimeAction ?? "")) {
+    return ExternalLink;
+  }
+  return Download;
+}
 
 function agentRuntimeStatusLabel(runtime: AgentRuntimeDescriptor | null, t: TranslationFn): string {
   if (!runtime?.available) return t("agents.runtime.unavailable");
@@ -48,8 +85,10 @@ export function PluginMarketplaceCard(props: {
   onTogglePlugin: (plugin: InstalledPlugin) => void;
   onRemovePlugin: (pluginId: string) => void;
   onToolchainAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
+  onToolchainDirectoryPick: (pluginId: string, contributionId: string) => void;
   onRuntimeAssetAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
   onAgentRuntimeAction: (pluginId: string, runtimeId: AgentRuntimeId, action: AgentRuntimeAction) => void;
+  onOpenFeature: (target: PluginOpenTarget) => void;
   t: TranslationFn;
 }) {
   const {
@@ -69,10 +108,14 @@ export function PluginMarketplaceCard(props: {
     onTogglePlugin,
     onRemovePlugin,
     onToolchainAction,
+    onToolchainDirectoryPick,
     onRuntimeAssetAction,
     onAgentRuntimeAction,
+    onOpenFeature,
     t,
   } = props;
+  const [secondaryOpen, setSecondaryOpen] = useState(false);
+  const secondaryRef = useRef<HTMLDivElement | null>(null);
   const plugin: PluginManifest = entry.manifest;
   const Icon = iconFor(plugin);
   const localized = localizedPlugin(plugin, locale);
@@ -105,6 +148,159 @@ export function PluginMarketplaceCard(props: {
   const toolchainDetail = describeToolchainStatus(toolchain, toolchainStatus, t);
   const integrationLabel = integrationLevelLabel(plugin, t);
   const sourceLabel = runtimeSourceLabel(plugin, t);
+  const primaryAction = resolvePluginPrimaryAction({
+    entry,
+    installedPlugin,
+    toolchainStatus,
+    runtimeAssetStatus,
+    agentRuntimeStatus,
+  });
+  const PrimaryIcon = primaryActionIcon(primaryAction);
+
+  useEffect(() => {
+    if (!secondaryOpen) return;
+    const closeOnPointer = (event: PointerEvent) => {
+      if (!secondaryRef.current?.contains(event.target as Node)) setSecondaryOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSecondaryOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnPointer);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnPointer);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [secondaryOpen]);
+
+  const runPrimaryAction = () => {
+    if (primaryAction.kind === "validation") return onDetailsOpen();
+    if (primaryAction.kind === "register") return onInstallPlugin(entry);
+    if (primaryAction.kind === "enable" && installedPlugin) return onTogglePlugin(installedPlugin);
+    if (primaryAction.kind === "toolchain-install" && primaryAction.contributionId) {
+      return onToolchainAction(plugin.id, primaryAction.contributionId, "install");
+    }
+    if (primaryAction.kind === "toolchain-detect" && primaryAction.contributionId) {
+      return onToolchainAction(plugin.id, primaryAction.contributionId, "verify");
+    }
+    if (primaryAction.kind === "runtime-install" && primaryAction.contributionId) {
+      return onRuntimeAssetAction(plugin.id, primaryAction.contributionId, "install");
+    }
+    if (
+      primaryAction.kind === "agent-runtime"
+      && primaryAction.runtimeId
+      && primaryAction.runtimeAction
+    ) {
+      return onAgentRuntimeAction(plugin.id, primaryAction.runtimeId, primaryAction.runtimeAction);
+    }
+    if (primaryAction.kind === "open" && primaryAction.openTarget) {
+      return onOpenFeature(primaryAction.openTarget);
+    }
+  };
+
+  const secondaryActions: SecondaryAction[] = [];
+  if (primaryAction.kind !== "validation") {
+    secondaryActions.push({ id: "details", label: t("plugins.details"), run: onDetailsOpen });
+  }
+  if (toolchain) {
+    if (primaryAction.kind !== "toolchain-detect") {
+      secondaryActions.push({
+        id: "toolchain-verify",
+        label: t("plugins.toolchain.verify"),
+        disabled: busy || !canUseRuntime,
+        run: () => onToolchainAction(plugin.id, toolchain.id, "verify"),
+      });
+    }
+    if (toolchainIsProbe) {
+      secondaryActions.push({
+        id: "toolchain-local",
+        label: t("plugins.toolchain.pickLocal"),
+        disabled: busy || !canUseRuntime,
+        run: () => onToolchainDirectoryPick(plugin.id, toolchain.id),
+      });
+    }
+    if (toolchainStatus?.installed) {
+      secondaryActions.push({
+        id: "toolchain-remove",
+        label: t("plugins.toolchain.remove"),
+        disabled: busy,
+        run: () => onToolchainAction(plugin.id, toolchain.id, "remove"),
+      });
+    }
+  }
+  if (runtimeAsset) {
+    secondaryActions.push({
+      id: "runtime-verify",
+      label: t("plugins.toolchain.verify"),
+      disabled: busy || !canUseRuntime,
+      run: () => onRuntimeAssetAction(plugin.id, runtimeAsset.id, "verify"),
+    });
+    if (runtimeAssetStatus?.installed && runtimeAssetStatus.source === "managed") {
+      secondaryActions.push({
+        id: "runtime-remove",
+        label: t("plugins.runtimeAsset.remove"),
+        disabled: busy,
+        run: () => onRuntimeAssetAction(plugin.id, runtimeAsset.id, "remove"),
+      });
+    }
+  }
+  if (agentRuntime?.agentRuntimeDetector) {
+    const { runtimeId } = agentRuntime.agentRuntimeDetector;
+    if (primaryAction.runtimeAction !== "detect") {
+      secondaryActions.push({
+        id: "agent-detect",
+        label: t("plugins.agentRuntime.detect"),
+        disabled: busy,
+        run: () => onAgentRuntimeAction(plugin.id, runtimeId, "detect"),
+      });
+    }
+    if (primaryAction.runtimeAction !== "select") {
+      secondaryActions.push({
+        id: "agent-select",
+        label: t("plugins.agentRuntime.selectExecutable"),
+        disabled: busy,
+        run: () => onAgentRuntimeAction(plugin.id, runtimeId, "select"),
+      });
+    }
+    secondaryActions.push({
+      id: "agent-update",
+      label: t(agentRuntimeUpdating ? "plugins.agentRuntime.cancelUpdate" : "plugins.agentRuntime.update"),
+      disabled: (busy && !agentRuntimeUpdating) || (!agentRuntimeUpdating && !agentRuntimeStatus?.available),
+      run: () => onAgentRuntimeAction(plugin.id, runtimeId, agentRuntimeUpdating ? "cancel-update" : "update"),
+    });
+    if (agentRuntimeStatus?.enabled) {
+      secondaryActions.push({
+        id: "agent-disable",
+        label: t("plugins.agentRuntime.disable"),
+        disabled: busy,
+        run: () => onAgentRuntimeAction(plugin.id, runtimeId, "disable"),
+      });
+    }
+    if (agentRuntimeReady && primaryAction.runtimeAction !== "terminal") {
+      secondaryActions.push({
+        id: "agent-terminal",
+        label: t("plugins.agentRuntime.openTerminal"),
+        disabled: busy,
+        run: () => onAgentRuntimeAction(plugin.id, runtimeId, "terminal"),
+      });
+    }
+  }
+  if (installedPlugin) {
+    if (installedPlugin.enabled) {
+      secondaryActions.push({
+        id: "disable",
+        label: t("plugins.disable"),
+        disabled: busy,
+        run: () => onTogglePlugin(installedPlugin),
+      });
+    }
+    secondaryActions.push({
+      id: "uninstall",
+      label: t("plugins.uninstall"),
+      disabled: busy,
+      run: () => onRemovePlugin(plugin.id),
+    });
+  }
 
   return (
     <article className="app-material-inset group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
@@ -185,10 +381,8 @@ export function PluginMarketplaceCard(props: {
           ) : null}
         </div>
         {errorCount > 0 || warningCount > 0 ? (
-          <button
-            type="button"
+          <span
             className={cn("inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-[10px]", errorCount > 0 ? issueTone("error") : issueTone("warning"))}
-            onClick={onDetailsOpen}
             title={t("plugins.validationDetails")}
           >
             {errorCount > 0 ? <AlertTriangle className="h-3 w-3" /> : <Info className="h-3 w-3" />}
@@ -197,111 +391,61 @@ export function PluginMarketplaceCard(props: {
                 ? t("plugins.validationErrors").replace("{count}", String(errorCount))
                 : t("plugins.validationWarnings").replace("{count}", String(warningCount))}
             </span>
-          </button>
+          </span>
         ) : (
           <span className="inline-flex max-w-full truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
             {t("plugins.validationOk")}
           </span>
         )}
-        <button
-          type="button"
-          className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 hover:border-primary-200 hover:text-primary-700"
-          onClick={onDetailsOpen}
-          title={t("plugins.details")}
-        >
-          <Info className="h-3 w-3" />
-          <span className="truncate">{t("plugins.details")}</span>
-        </button>
       </div>
 
-      <div className="app-material-content flex min-w-0 flex-wrap justify-end gap-1 border-t px-2.5 py-1.5">
-        {toolchain ? (
-          <>
-            <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "verify")}>
-              {t("plugins.toolchain.verify")}
-            </Button>
-            {toolchainIsProbe ? null : toolchainStatus?.installed && toolchainStatus.source === "managed" ? (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onToolchainAction(plugin.id, toolchain.id, "remove")}>
-                {t("plugins.toolchain.remove")}
-              </Button>
-            ) : !toolchainStatus?.installed ? (
-              <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "install")}>
-                {t("plugins.toolchain.install")}
-              </Button>
-            ) : null}
-            {toolchainStatus?.installed && toolchainStatus.source === "local" ? (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onToolchainAction(plugin.id, toolchain.id, "remove")}>
-                {t("plugins.toolchain.remove")}
-              </Button>
-            ) : null}
-          </>
-        ) : null}
-        {runtimeAsset ? (
-          runtimeAssetStatus?.installed && runtimeAssetStatus.source === "managed" ? (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => onRuntimeAssetAction(plugin.id, runtimeAsset.id, "remove")}>
-              {t("plugins.runtimeAsset.remove")}
-            </Button>
-          ) : !runtimeAssetStatus?.installed ? (
-            <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onRuntimeAssetAction(plugin.id, runtimeAsset.id, "install")}>
-              {t("plugins.runtimeAsset.install")}
-            </Button>
-          ) : null
-        ) : null}
-        {agentRuntime?.agentRuntimeDetector ? (
-          <>
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "detect")}>
-              {t("plugins.agentRuntime.detect")}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "select")}>
-              {t("plugins.agentRuntime.selectExecutable")}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={(busy && !agentRuntimeUpdating) || (!agentRuntimeUpdating && !agentRuntimeStatus?.available)}
-              onClick={() => onAgentRuntimeAction(
-                plugin.id,
-                agentRuntime.agentRuntimeDetector!.runtimeId,
-                agentRuntimeUpdating ? "cancel-update" : "update",
-              )}
+      <div className="app-material-content flex min-w-0 items-center justify-end gap-1.5 border-t px-2.5 py-1.5">
+        <Button
+          size="sm"
+          variant={primaryAction.kind === "validation" ? "secondary" : "default"}
+          disabled={busy || primaryAction.disabled}
+          data-plugin-primary-action={primaryAction.kind}
+          onClick={runPrimaryAction}
+        >
+          <PrimaryIcon className="mr-1.5 h-3.5 w-3.5" />
+          {t(primaryAction.labelKey as any)}
+        </Button>
+        {secondaryActions.length > 0 ? (
+          <div ref={secondaryRef} className="relative">
+            <button
+              type="button"
+              className="control-button control-button--ghost inline-flex h-8 w-8 items-center justify-center"
+              aria-label={t("plugins.secondaryActions")}
+              aria-haspopup="menu"
+              aria-expanded={secondaryOpen}
+              onClick={() => setSecondaryOpen((value) => !value)}
             >
-              {t(agentRuntimeUpdating ? "plugins.agentRuntime.cancelUpdate" : "plugins.agentRuntime.update")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={busy || (!agentRuntimeStatus?.enabled && (!agentRuntimeStatus?.available || !agentRuntimeStatus?.authenticated))}
-              onClick={() => onAgentRuntimeAction(
-                plugin.id,
-                agentRuntime.agentRuntimeDetector!.runtimeId,
-                agentRuntimeStatus?.enabled ? "disable" : "enable",
-              )}
-            >
-              {t(agentRuntimeStatus?.enabled ? "plugins.agentRuntime.disable" : "plugins.agentRuntime.enable")}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy || !agentRuntimeReady} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "terminal")}>
-              {t("plugins.agentRuntime.openTerminal")}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "profiles")}>
-              {t("plugins.agentRuntime.useForProfiles")}
-            </Button>
-          </>
-        ) : null}
-        {installedPlugin ? (
-          <>
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onTogglePlugin(installedPlugin)}>
-              <Power className="mr-1.5 h-3.5 w-3.5" />
-              {installedPlugin.enabled ? t("plugins.disable") : t("plugins.enable")}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => onRemovePlugin(plugin.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </>
-        ) : entry.sourceId !== "builtin" ? (
-          <Button size="sm" disabled={busy || !entry.validation.ok} onClick={() => onInstallPlugin(entry)}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            {t("plugins.install")}
-          </Button>
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {secondaryOpen ? (
+              <div
+                role="menu"
+                className="app-material-floating absolute bottom-full right-0 z-30 mb-1 min-w-44 overflow-hidden rounded-md border py-1 shadow-lg"
+              >
+                {secondaryActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    role="menuitem"
+                    data-plugin-secondary-action={action.id}
+                    disabled={action.disabled}
+                    className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    onClick={() => {
+                      setSecondaryOpen(false);
+                      action.run();
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </article>

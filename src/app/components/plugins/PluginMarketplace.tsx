@@ -29,7 +29,7 @@ import {
   removeRuntimeAsset,
   verifyRuntimeAsset,
 } from "../../../shared/api/runtimeAssets";
-import type { AppSettings } from "../../../shared/types/app";
+import type { AppSettings, WorkspacePage } from "../../../shared/types/app";
 import type { AgentRuntimeAction, AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
 import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
@@ -37,9 +37,12 @@ import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import { InfoHint } from "../../../components/ui/info-hint";
 import { cn } from "../../../lib/utils";
+import { SETTINGS_SECTIONS } from "../../app-config";
 import { requestAppConfirm } from "../../dialog/appDialogBridge";
+import { requestSettingsSection } from "../../settings/settingsNavigation";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
 import { PluginMarketplaceDetailDialog } from "./PluginMarketplaceDetailDialog";
+import type { PluginOpenTarget } from "./pluginPrimaryAction";
 import { installedPluginForMarketplaceEntry } from "./pluginMarketplaceInstallState";
 import {
   HIGH_RISK_PLUGIN_PERMISSIONS,
@@ -77,9 +80,10 @@ export function PluginMarketplace(props: {
   settings: AppSettings | null;
   onOpenAgentControl?: () => void;
   onOpenAgentTerminal?: (runtimeId: AgentRuntimeId) => void;
+  onOpenWorkspacePage?: (page: WorkspacePage) => void;
   t: TranslationFn;
 }) {
-  const { settings, onOpenAgentControl, onOpenAgentTerminal, t } = props;
+  const { settings, onOpenAgentControl, onOpenAgentTerminal, onOpenWorkspacePage, t } = props;
   const locale = localeOf(settings?.uiPrefs?.language);
   const [query, setQuery] = useState("");
   const [scienceFilter, setScienceFilter] = useState("all");
@@ -353,6 +357,12 @@ export function PluginMarketplace(props: {
     }
   };
 
+  const openPluginFeature = (target: PluginOpenTarget) => {
+    const settingsSection = SETTINGS_SECTIONS.find((item) => item.id === target.settingsSection)?.id;
+    if (settingsSection) requestSettingsSection(settingsSection);
+    onOpenWorkspacePage?.(target.page);
+  };
+
   const showInitialLoading = refreshing && !loaded && catalog.length === 0;
 
   return (
@@ -465,8 +475,10 @@ export function PluginMarketplace(props: {
                 onTogglePlugin={(item) => void toggle(item)}
                 onRemovePlugin={(pluginId) => void remove(pluginId)}
                 onToolchainAction={(pluginId, contributionId, action) => void runToolchainAction(pluginId, contributionId, action)}
+                onToolchainDirectoryPick={(pluginId, contributionId) => void chooseToolchainDirectory(pluginId, contributionId)}
                 onRuntimeAssetAction={(pluginId, contributionId, action) => void runRuntimeAssetAction(pluginId, contributionId, action)}
                 onAgentRuntimeAction={(pluginId, runtimeId, action) => void runAgentRuntimeAction(pluginId, runtimeId, action)}
+                onOpenFeature={openPluginFeature}
                 t={t}
               />
             );
