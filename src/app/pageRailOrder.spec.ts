@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PAGE_ORDER,
+  LEGACY_DEFAULT_PAGE_ORDER_0_1_4,
   moveSidebarPageOrderItem,
   normalizeSidebarPageOrder,
 } from "./pageRailOrder";
@@ -22,12 +23,30 @@ describe("pageRailOrder", () => {
 
   it("falls back to the default page order", () => {
     expect(normalizeSidebarPageOrder(null)).toEqual(DEFAULT_PAGE_ORDER);
+    expect(DEFAULT_PAGE_ORDER.slice(0, 2)).toEqual(["latex", "library"]);
+  });
+
+  it("migrates only the exact 0.1.4 default order", () => {
+    expect(normalizeSidebarPageOrder(LEGACY_DEFAULT_PAGE_ORDER_0_1_4)).toEqual(DEFAULT_PAGE_ORDER);
+
+    const customized = [
+      "library",
+      "latex",
+      "analysis",
+      "submission",
+      "agents",
+      "draw",
+      "plugins",
+      "git",
+      "settings",
+    ];
+    expect(normalizeSidebarPageOrder(customized)).toEqual(customized);
   });
 
   it("moves pages within the normalized order", () => {
     expect(moveSidebarPageOrderItem(DEFAULT_PAGE_ORDER, "plugins", -1)).toEqual([
-      "library",
       "latex",
+      "library",
       "analysis",
       "submission",
       "agents",
@@ -41,8 +60,8 @@ describe("pageRailOrder", () => {
   it("keeps research destinations ahead of tools while preserving order inside each group", () => {
     expect(normalizeSidebarPageOrder(["settings", "analysis", "git", "overview"])).toEqual([
       "analysis",
-      "library",
       "latex",
+      "library",
       "submission",
       "settings",
       "git",

@@ -3,9 +3,28 @@ import type { WorkspacePage } from "../shared/types/app";
 
 export const DEFAULT_PAGE_ORDER: WorkspacePage[] = PAGE_ITEMS.map((item) => item.id);
 
+export const LEGACY_DEFAULT_PAGE_ORDER_0_1_4: WorkspacePage[] = [
+  "library",
+  "latex",
+  "analysis",
+  "submission",
+  "agents",
+  "draw",
+  "git",
+  "plugins",
+  "settings",
+];
+
 const PAGE_GROUP = new Map(PAGE_ITEMS.map((item) => [item.id, item.group]));
 
 export function normalizeSidebarPageOrder(rawOrder: unknown): WorkspacePage[] {
+  if (
+    Array.isArray(rawOrder)
+    && rawOrder.length === LEGACY_DEFAULT_PAGE_ORDER_0_1_4.length
+    && rawOrder.every((page, index) => page === LEGACY_DEFAULT_PAGE_ORDER_0_1_4[index])
+  ) {
+    return [...DEFAULT_PAGE_ORDER];
+  }
   const valid = new Set<WorkspacePage>(DEFAULT_PAGE_ORDER);
   const next: WorkspacePage[] = [];
   if (Array.isArray(rawOrder)) {

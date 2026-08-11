@@ -86,8 +86,8 @@ export const PAGE_ITEMS: Array<{
   icon: typeof FileCode2;
   group: "research" | "tools";
 }> = [
-  { id: "library", key: "nav.library", icon: Library, group: "research" },
   { id: "latex", key: "nav.latex", icon: FileCode2, group: "research" },
+  { id: "library", key: "nav.library", icon: Library, group: "research" },
   { id: "analysis", key: "nav.analysis", icon: SearchCode, group: "research" },
   { id: "submission", key: "nav.submission", icon: Send, group: "research" },
   { id: "agents", key: "nav.agents", icon: UsersRound, group: "tools" },
