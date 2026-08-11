@@ -85,6 +85,8 @@ export function useKnowledgeSearch(params: {
 
     const runId = nextKnowledgeSearchRunId();
     activeRunRef.current = runId;
+    setHits([]);
+    setEmbedding(null);
     setSearching(true);
     setErrorMessage(null);
     onStartRef.current();

@@ -2,20 +2,16 @@ import { Suspense, lazy, useEffect } from "react";
 import { requestSettingsSection } from "../../settings/settingsNavigation";
 import type { AgentRuntimeId } from "../../../shared/types/agentControl";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
+import type { KnowledgeDocumentFocusRequest } from "../../../shared/types/app";
 
 export const LazyAgentChatOverlay = lazy(async () => {
   const module = await import("../AgentChatOverlay");
   return { default: module.AgentChatOverlay };
 });
 
-export const LazyLibraryDocumentViewer = lazy(async () => {
-  const module = await import("../LibraryDocumentViewer");
-  return { default: module.LibraryDocumentViewer };
-});
-
-export const LazyKnowledgeWorkbench = lazy(async () => {
-  const module = await import("../knowledge/KnowledgeWorkbench");
-  return { default: module.KnowledgeWorkbench };
+export const LazyKnowledgePageLayout = lazy(async () => {
+  const module = await import("../knowledge/KnowledgePageLayout");
+  return { default: module.KnowledgePageLayout };
 });
 
 export const LazyChatWorkspace = lazy(async () => {
@@ -61,13 +57,15 @@ export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps,
 export function LazyDocxWorkspaceSurface(props: {
   shell: AppWorkspaceShellProps;
   selectedIsDocx: boolean;
+  focusRequest?: KnowledgeDocumentFocusRequest | null;
 }) {
-  const { shell, selectedIsDocx } = props;
+  const { shell, selectedIsDocx, focusRequest = null } = props;
   return (
     <Suspense fallback={<WorkspacePanelFallback label={shell.t("common.loading")} />}>
       <LazyDocxWorkspace
         projectId={shell.activeProjectId ?? ""}
         selectedPath={selectedIsDocx ? shell.selectedFile : null}
+        focusRequest={selectedIsDocx ? focusRequest : null}
         busy={shell.busy}
         tree={shell.tree}
         autoSaveEnabled={shell.settings?.uiPrefs?.docxAutoSaveEnabled ?? false}

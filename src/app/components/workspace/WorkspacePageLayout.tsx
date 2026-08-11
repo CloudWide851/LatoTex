@@ -1,15 +1,14 @@
 import { Suspense } from "react";
 import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { LibraryExplorerPanel } from "./LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./WorkspaceExplorerPanel";
 import {
   WorkspacePanelFallback,
-  LazyKnowledgeWorkbench,
-  LazyLibraryDocumentViewer,
+  LazyKnowledgePageLayout,
 } from "./workspaceShellLazy";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 import { emitWorkspaceLayoutRefresh } from "../../hooks/workspaceLayoutRefresh";
+import type { KnowledgeDocumentFocusRequest, KnowledgeItem } from "../../../shared/types/app";
 
 type WorkspacePageLayoutProps = Pick<
   AppWorkspaceShellProps,
@@ -28,6 +27,7 @@ type WorkspacePageLayoutProps = Pick<
   | "explorerGitDecorations"
   | "agentResourceLocks"
   | "onSelectLibraryPath"
+  | "onProjectChange"
   | "onPageChange"
   | "onFsAction"
   | "onWorkspaceRevealInSystem"
@@ -58,6 +58,10 @@ type WorkspacePageLayoutProps = Pick<
   renderMainPanel: () => React.ReactNode;
   renderPdfPreviewPanel: () => React.ReactNode;
   onSelectWorkspaceFile: (path: string | null) => void;
+  onOpenKnowledgeWorkspaceSource: (
+    item: KnowledgeItem,
+    request: KnowledgeDocumentFocusRequest,
+  ) => void;
 };
 
 export function WorkspacePageLayout({
@@ -76,6 +80,7 @@ export function WorkspacePageLayout({
   explorerGitDecorations,
   agentResourceLocks,
   onSelectLibraryPath,
+  onProjectChange,
   onPageChange,
   onFsAction,
   onWorkspaceRevealInSystem,
@@ -105,6 +110,7 @@ export function WorkspacePageLayout({
   renderMainPanel,
   renderPdfPreviewPanel,
   onSelectWorkspaceFile,
+  onOpenKnowledgeWorkspaceSource,
 }: WorkspacePageLayoutProps) {
   const settledRefreshTimerRef = useRef<number | null>(null);
   const refreshDelayMs = Math.max(500, Math.min(5000, Number(editorResizeRefreshDelayMs || 2000)));
@@ -134,69 +140,40 @@ export function WorkspacePageLayout({
       return null;
     }
     return (
-      <PanelGroup
-        key={`panelgroup-library-${activeProjectId}`}
-        direction="horizontal"
-        className="h-full gap-px"
-        onLayout={(layout) => handleLayout("library", layout)}
-      >
-        <Panel className="min-w-0" id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
-          <LibraryExplorerPanel
+      <section className="h-full min-h-0 min-w-0 motion-page-in">
+        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+          <LazyKnowledgePageLayout
+            projectId={activeProjectId}
+            busy={busy}
+            layout={libraryLayout}
             libraryTree={libraryTree}
             selectedLibraryPath={selectedLibraryPath}
-            busy={busy}
+            analysisRunning={analysisRunning}
+            libraryViewMode={libraryViewMode}
+            translationModelId={translationModelId}
+            paperBriefEngine={paperBriefEngine}
+            libraryBibLayout={libraryBibLayout}
+            libraryExplorerDefaultExpanded={libraryExplorerDefaultExpanded}
+            libraryExplorerScrollbarVisible={libraryExplorerScrollbarVisible}
+            libraryExplorerExpandedPaths={libraryExplorerExpandedPaths}
+            onLibraryExplorerExpandedPathsChange={onLibraryExplorerExpandedPathsChange}
+            onLayout={(layout) => handleLayout("library", layout)}
+            onBibLayoutChange={(layout) => handleLayout("libraryBib", layout)}
             onSelectLibraryPath={onSelectLibraryPath}
+            onOpenWorkspaceSource={onOpenKnowledgeWorkspaceSource}
+            onProjectChange={onProjectChange}
+            onOpenPlugins={() => onPageChange("plugins")}
             onFsAction={onFsAction}
             onLibraryRescan={onLibraryRescan}
             onLibraryImportPdf={onLibraryImportPdf}
             onLibraryImportLink={onLibraryImportLink}
             onLibrarySyncZotero={onLibrarySyncZotero}
-            defaultExpanded={libraryExplorerDefaultExpanded}
-            scrollbarVisible={libraryExplorerScrollbarVisible}
-            expandedPaths={libraryExplorerExpandedPaths}
-            onExpandedPathsChange={onLibraryExplorerExpandedPathsChange}
+            onLibraryAnalyzePaper={onLibraryAnalyzePaper}
+            onLibraryViewModeChange={onLibraryViewModeChange}
             t={t}
           />
-        </Panel>
-        <PanelResizeHandle className="resizable-handle" />
-        <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
-          <section className="h-full min-h-0 min-w-0 motion-page-in">
-            <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-              {selectedLibraryPath ? (
-                <LazyLibraryDocumentViewer
-                  projectId={activeProjectId}
-                  selectedPath={selectedLibraryPath}
-                  active
-                  onAnalyzePaper={onLibraryAnalyzePaper}
-                  analysisRunning={analysisRunning}
-                  persistedViewMode={libraryViewMode}
-                  onPersistViewMode={onLibraryViewModeChange}
-                  translationModelId={translationModelId}
-                  paperBriefEngine={paperBriefEngine}
-                  bibLayout={libraryBibLayout}
-                  onBibLayoutChange={(layout) => handleLayout("libraryBib", layout)}
-                  t={t}
-                />
-              ) : (
-                <LazyKnowledgeWorkbench
-                  projectId={activeProjectId}
-                  onOpenSource={(item) => {
-                    const paperPrefix = ".latotex/papers/";
-                    if (item.relativePath.startsWith(paperPrefix)) {
-                      onSelectLibraryPath(item.relativePath.slice(paperPrefix.length));
-                      return;
-                    }
-                    onSelectWorkspaceFile(item.relativePath);
-                    onPageChange("latex");
-                  }}
-                  onOpenPlugins={() => onPageChange("plugins")}
-                  t={t}
-                />
-              )}
-            </Suspense>
-          </section>
-        </Panel>
-      </PanelGroup>
+        </Suspense>
+      </section>
     );
   };
 

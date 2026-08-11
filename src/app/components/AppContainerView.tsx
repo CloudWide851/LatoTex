@@ -34,6 +34,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     projectSearchSearched,
     projectSearchResults,
     handleProjectChange,
+    setPendingRevealLine,
     handleProjectDelete,
     setProjectSearchQuery,
     handleProjectSearch,
@@ -387,6 +388,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 analysisPanel={analysisPanel}
                 agentPanel={agentPanel}
                 onPageChange={setPage}
+                onProjectChange={handleProjectChange}
                 shareSession={shareSession}
                 sharePassword={sharePassword}
                 shareBusy={shareBusy}
@@ -405,6 +407,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 onSharePasswordReveal={handleSharePasswordReveal}
                 onShareConflictResolve={handleShareConflictResolve}
                 onSelectFile={handleSelectWorkspacePath}
+                onRevealWorkspaceLine={setPendingRevealLine}
                 onSelectLibraryPath={setSelectedLibraryPath}
                 onEditorChange={setEditorContent}
                 onTabSelect={handleTabSelect}

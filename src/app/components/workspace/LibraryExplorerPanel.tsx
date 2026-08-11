@@ -1,7 +1,5 @@
-import { RefreshCcw } from "lucide-react";
 import type { FsAction, FsScope, ResourceNode } from "../../../shared/types/app";
 import { ExplorerTree } from "../ExplorerTree";
-import { LibraryUploadMenu } from "../LibraryUploadMenu";
 
 type TranslationFn = (key: any) => string;
 
@@ -51,15 +49,6 @@ export function LibraryExplorerPanel(props: {
     targetPath?: string,
     content?: string,
   ) => Promise<boolean | void>;
-  onLibraryRescan: () => void;
-  onLibraryImportPdf: () => void;
-  onLibraryImportLink: (input: {
-    link: string;
-    scope?: "users" | "groups";
-    ownerId?: string;
-    apiKey?: string;
-  }) => void;
-  onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   defaultExpanded: boolean;
   scrollbarVisible: boolean;
   expandedPaths?: string[];
@@ -72,10 +61,6 @@ export function LibraryExplorerPanel(props: {
     busy,
     onSelectLibraryPath,
     onFsAction,
-    onLibraryRescan,
-    onLibraryImportPdf,
-    onLibraryImportLink,
-    onLibrarySyncZotero,
     defaultExpanded,
     scrollbarVisible,
     expandedPaths,
@@ -87,35 +72,7 @@ export function LibraryExplorerPanel(props: {
 
   return (
     <aside className="app-material-panel h-full min-h-0 overflow-hidden rounded-lg border p-1.5">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          className="truncate text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-[color:var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
-          onClick={() => onSelectLibraryPath(null)}
-          title={t("knowledge.title")}
-        >
-          {t("library.title")}
-        </button>
-        <div className="flex items-center gap-1">
-          <button
-            className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded border transition disabled:opacity-50"
-            onClick={onLibraryRescan}
-            disabled={busy}
-            title={t("explorer.action.rescan")}
-            aria-label={t("explorer.action.rescan")}
-          >
-            <RefreshCcw className="h-4 w-4" />
-          </button>
-          <LibraryUploadMenu
-            busy={busy}
-            onImportPdf={onLibraryImportPdf}
-            onImportLink={onLibraryImportLink}
-            onSyncZotero={onLibrarySyncZotero}
-            t={t}
-          />
-        </div>
-      </div>
-      <div className="h-[calc(100%-32px)] min-h-0 overflow-hidden">
+      <div className="h-full min-h-0 overflow-hidden">
         <ExplorerTree
           mode="library"
           tree={filteredLibraryTree}

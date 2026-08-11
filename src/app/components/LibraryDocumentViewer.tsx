@@ -25,28 +25,17 @@ import { useLibraryTranslationDriftRefresh } from "./library/useLibraryTranslati
 import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
 import { requestAppConfirm } from "../dialog/appDialogBridge";
+import { KnowledgeFocusNotice } from "./knowledge/KnowledgeFocusNotice";
+import { useLibraryKnowledgeFocus } from "./library/useLibraryKnowledgeFocus";
+import type { LibraryDocumentViewerProps, LibraryDocumentViewMode } from "./library/libraryDocumentViewerTypes";
 
-type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
-type ViewMode = "bib" | "pdf" | "compare";
-export function LibraryDocumentViewer(props: {
-  projectId: string | null;
-  selectedPath: string | null;
-  active: boolean;
-  onAnalyzePaper: (path: string) => void;
-  analysisRunning: boolean;
-  persistedViewMode?: ViewMode | null;
-  onPersistViewMode?: (mode: ViewMode) => void;
-  translationModelId?: string | null;
-  paperBriefEngine: "auto" | "pdfjs" | "python";
-  bibLayout?: number[];
-  onBibLayoutChange?: (layout: number[]) => void;
-  t: TranslationFn;
-}) {
+export function LibraryDocumentViewer(props: LibraryDocumentViewerProps) {
   const {
     projectId,
     selectedPath,
     active,
+    focusRequest = null,
     onAnalyzePaper,
     analysisRunning,
     persistedViewMode,
@@ -196,7 +185,7 @@ export function LibraryDocumentViewer(props: {
     ensurePdfPreviewLoaded,
     resetTranslationState,
   });
-  const applyViewMode = useCallback((nextMode: ViewMode) => {
+  const applyViewMode = useCallback((nextMode: LibraryDocumentViewMode) => {
     setSession({ viewMode: nextMode });
     onPersistViewMode?.(nextMode);
   }, [onPersistViewMode, setSession]);
@@ -378,6 +367,8 @@ export function LibraryDocumentViewer(props: {
     viewerRef.current?.scrollToPage(normalized);
   }, [pageCount, setSession]);
 
+  const visibleKnowledgeFocusRequest = useLibraryKnowledgeFocus({ request: focusRequest, projectId, selectedPath, viewMode, hasPdf, requestPdfOpen, jumpToPage });
+
   const handleUndoCurrentPage = useCallback(() => {
     setAnnotationStrokes((items) => {
       const pageItems = items.filter((item) => item.page === currentPage);
@@ -451,7 +442,7 @@ export function LibraryDocumentViewer(props: {
   }
 
   return (
-    <div className="app-material-panel grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2 rounded-lg border p-2">
+    <div className="app-material-panel grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 rounded-lg border p-2">
       <LibraryDocumentToolbar
         selectedPath={selectedPath}
         viewMode={viewMode}
@@ -473,6 +464,7 @@ export function LibraryDocumentViewer(props: {
         onCopyLink={() => void handleCopyLink()}
         t={t}
       />
+      <KnowledgeFocusNotice request={visibleKnowledgeFocusRequest} t={t} />
       <div className="relative min-h-0 overflow-hidden">
         <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
         <LibraryPdfDownloadToast

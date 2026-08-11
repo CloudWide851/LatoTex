@@ -199,4 +199,26 @@ describe("useKnowledgeSearch", () => {
     expect(container.textContent).toContain("New");
     expect(container.textContent).not.toContain('"Old"');
   });
+
+  it("clears accepted results as soon as the query identity changes", async () => {
+    const lexicalOnlyEmbedding = { ...lexicalEmbedding, installed: false, available: false, mode: "lexical" as const };
+    apiMocks.searchKnowledge.mockImplementation((input: { query: string; runId: string }) => (
+      Promise.resolve(response(input.runId, [hit(input.query, input.query)], lexicalOnlyEmbedding))
+    ));
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push(root);
+
+    await act(async () => root.render(<SearchProbe query="first" />));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(180);
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("first");
+
+    await act(async () => root.render(<SearchProbe query="second" />));
+    expect(container.textContent).not.toContain('"first"');
+    expect(container.textContent).toContain('"hits":[]');
+  });
 });

@@ -10,6 +10,15 @@ export type KnowledgeAnchor = {
   heading?: string | null;
 };
 
+export type KnowledgeDocumentFocusRequest = {
+  token: number;
+  projectId: string;
+  path: string;
+  evidenceId?: string | null;
+  anchor?: KnowledgeAnchor | null;
+  snippet?: string | null;
+};
+
 export type KnowledgeItem = {
   itemId: string;
   projectId: string;

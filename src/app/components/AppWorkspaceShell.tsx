@@ -36,6 +36,8 @@ import type { AgentRuntimeId } from "../../shared/types/agentControl";
 import type { AgentTerminalLaunchRequest } from "./terminal/terminalTypes";
 import { renderWorkspaceSpecialPage } from "./workspace/renderWorkspaceSpecialPage";
 import { useWorkspaceLatexCompletionRuntime } from "./workspace/useWorkspaceLatexCompletionRuntime";
+import type { KnowledgeDocumentFocusRequest, KnowledgeItem } from "../../shared/types/app";
+import { knowledgeFocusLine, knowledgeFocusPage } from "./knowledge/knowledgeDocumentFocus";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -76,7 +78,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     analysisPanel,
     agentPanel,
     onPageChange,
+    onProjectChange,
     onSelectFile,
+    onRevealWorkspaceLine,
     onSelectLibraryPath,
     onTabSelect,
     onEditorChange,
@@ -120,7 +124,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   } = props;
 
   const [previewZoom, setPreviewZoom] = useState(1);
-  const previewFocusRequest = null;
+  const [knowledgeFocusRequest, setKnowledgeFocusRequest] = useState<KnowledgeDocumentFocusRequest | null>(null);
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
   const [compileAssistOverride, setCompileAssistOverride] = useState<
     | { kind: "cjk"; diagnostics: string[]; hint: string }
@@ -182,6 +186,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   useDrawWorkspacePreload(Boolean(activeProjectId));
 
   const previewSelectedPath = previewOverridePath || selectedFile;
+  const knowledgePreviewPage = knowledgeFocusPage(knowledgeFocusRequest);
+  const previewFocusRequest = knowledgeFocusRequest
+    && knowledgePreviewPage
+    && knowledgeFocusRequest.projectId === activeProjectId
+    && knowledgeFocusRequest.path === previewSelectedPath
+      ? { page: knowledgePreviewPage, token: knowledgeFocusRequest.token }
+      : null;
   const pluginFileManifests = usePluginFileManifests(Boolean(activeProjectId));
   const scientificPluginIds = useMemo(
     () => pluginFileManifests
@@ -284,7 +295,19 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
 
   const handleSelectWorkspaceFile = (path: string | null) => {
     setChatTabActive(false);
+    setKnowledgeFocusRequest(null);
     onSelectFile(path);
+  };
+
+  const handleOpenKnowledgeWorkspaceSource = (
+    item: KnowledgeItem,
+    request: KnowledgeDocumentFocusRequest,
+  ) => {
+    setChatTabActive(false);
+    setKnowledgeFocusRequest(request);
+    onRevealWorkspaceLine(knowledgeFocusLine(request));
+    onSelectFile(item.relativePath);
+    onPageChange("latex");
   };
 
   const openCjkCompileAssist = (
@@ -462,7 +485,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         mode={latexMode}
         onModeChange={setLatexMode}
         texWorkspace={renderTexWorkspace()}
-        docxWorkspace={<LazyDocxWorkspaceSurface shell={props} selectedIsDocx={selectedIsDocx} />}
+        docxWorkspace={<LazyDocxWorkspaceSurface shell={props} selectedIsDocx={selectedIsDocx} focusRequest={knowledgeFocusRequest} />}
         submissionWorkspace={(
           <LazySubmissionCiWorkspaceSurface
             shell={props}
@@ -506,6 +529,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             explorerGitDecorations={explorerGitDecorations}
             agentResourceLocks={agentResourceLocks}
             onSelectLibraryPath={onSelectLibraryPath}
+            onProjectChange={onProjectChange}
+            onOpenKnowledgeWorkspaceSource={handleOpenKnowledgeWorkspaceSource}
             onPageChange={onPageChange}
             onFsAction={onFsAction}
             onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}

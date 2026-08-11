@@ -5,6 +5,8 @@ import { cn } from "../../../lib/utils";
 import { readDocx, writeDocx } from "../../../shared/api/docx";
 import type { ResourceNode } from "../../../shared/types/app";
 import { cspStyle } from "../../../shared/ui/cspStyle";
+import type { KnowledgeDocumentFocusRequest } from "../../../shared/types/app";
+import { KnowledgeFocusNotice } from "../knowledge/KnowledgeFocusNotice";
 import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
 import { requestAppTextInput } from "../../dialog/appDialogBridge";
 import { DocxRibbonPopup, type RibbonTab } from "./DocxRibbonPopup";
@@ -59,13 +61,14 @@ function clampZoom(value: number) {
 export function DocxWorkspace(props: {
   projectId: string;
   selectedPath: string | null;
+  focusRequest?: KnowledgeDocumentFocusRequest | null;
   busy: boolean;
   tree?: ResourceNode[];
   autoSaveEnabled?: boolean;
   onRescan: () => void | Promise<void>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, busy, tree = [], autoSaveEnabled = false, onRescan, t } = props;
+  const { projectId, selectedPath, focusRequest = null, busy, tree = [], autoSaveEnabled = false, onRescan, t } = props;
   const editorRef = useRef<HTMLDivElement | null>(null);
   const syncTimerRef = useRef<number | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
@@ -415,7 +418,7 @@ export function DocxWorkspace(props: {
 
   return (
     <section
-      className="app-material-panel grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border"
+      className="app-material-panel grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border"
       onKeyDown={handleWorkspaceKeyDown}
     >
       <header ref={chromeRef} className="relative z-30 border-b border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)]">
@@ -498,6 +501,7 @@ export function DocxWorkspace(props: {
           ) : null}
         </div>
       </header>
+      <KnowledgeFocusNotice request={focusRequest && focusRequest.projectId === projectId && focusRequest.path === selectedPath ? focusRequest : null} t={t} />
       <div
         className="app-material-content docx-page-wrap min-h-0 overflow-auto px-3 py-4"
         {...cspStyle({ "--docx-zoom": String(zoom) })}

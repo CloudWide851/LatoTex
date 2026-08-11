@@ -701,6 +701,7 @@ export function AppContainer() {
       projectSearchSearched={s.projectSearchSearched}
       projectSearchResults={s.projectSearchResults}
       handleProjectChange={workspaceActions.handleProjectChange}
+      setPendingRevealLine={s.setPendingRevealLine}
       handleProjectDelete={handleProjectDelete}
       setProjectSearchQuery={s.setProjectSearchQuery}
       handleProjectSearch={handlers.handleProjectSearch}

@@ -120,6 +120,7 @@ export type AppContainerViewProps = WorkspaceValueProps
     researchAgentRuntime: ResearchAgentRuntimeProjection;
 
     handleProjectChange: AppTopbarProps["onProjectChange"];
+    setPendingRevealLine: AppWorkspaceShellProps["onRevealWorkspaceLine"];
     handleProjectDelete: AppTopbarProps["onProjectDelete"];
     setProjectSearchQuery: Dispatch<SetStateAction<string>>;
     handleProjectSearch: AppTopbarProps["onProjectSearch"];

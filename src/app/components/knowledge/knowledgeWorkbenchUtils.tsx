@@ -3,6 +3,7 @@ import type {
   KnowledgeItem,
   KnowledgeSearchHit,
 } from "../../../shared/types/app";
+import { formatKnowledgeAnchor } from "./knowledgeDocumentFocus";
 
 export function itemFromHit(hit: KnowledgeSearchHit): KnowledgeItem {
   return {
@@ -43,17 +44,5 @@ export function HighlightedText(props: { text: string; query: string }) {
 export function anchorLabel(
   hit: KnowledgeSearchHit | KnowledgeFetchResponse | null,
 ) {
-  const anchor = hit?.citation.anchor;
-  if (!anchor) {
-    return "";
-  }
-  if (anchor.page) {
-    return `p.${anchor.page}`;
-  }
-  if (anchor.lineStart) {
-    return anchor.lineEnd && anchor.lineEnd !== anchor.lineStart
-      ? `L${anchor.lineStart}–${anchor.lineEnd}`
-      : `L${anchor.lineStart}`;
-  }
-  return anchor.heading || anchor.value;
+  return formatKnowledgeAnchor(hit?.citation.anchor);
 }
