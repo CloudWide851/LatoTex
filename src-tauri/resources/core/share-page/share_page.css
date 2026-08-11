@@ -852,6 +852,9 @@ video {
 .bottom-\[calc\(100\%\+6px\)\] {
   bottom: calc(100% + 6px);
 }
+.bottom-full {
+  bottom: 100%;
+}
 .left-0 {
   left: 0px;
 }
@@ -1526,8 +1529,8 @@ video {
 .w-\[360px\] {
   width: 360px;
 }
-.w-\[min\(19rem\2c 88vw\)\] {
-  width: min(19rem, 88vw);
+.w-\[min\(22rem\2c 92vw\)\] {
+  width: min(22rem, 92vw);
 }
 .w-\[min\(23rem\2c calc\(100vw-1\.5rem\)\)\] {
   width: min(23rem, calc(100vw - 1.5rem));
@@ -1535,11 +1538,11 @@ video {
 .w-\[min\(264px\2c 72vw\)\] {
   width: min(264px, 72vw);
 }
+.w-\[min\(42rem\2c 96vw\)\] {
+  width: min(42rem, 96vw);
+}
 .w-\[min\(430px\2c 86vw\)\] {
   width: min(430px, 86vw);
-}
-.w-\[min\(44rem\2c 94vw\)\] {
-  width: min(44rem, 94vw);
 }
 .w-\[min\(520px\2c calc\(100\%-24px\)\)\] {
   width: min(520px, calc(100% - 24px));
@@ -2208,6 +2211,14 @@ video {
   border-bottom-right-radius: 0.5rem;
   border-bottom-left-radius: 0.5rem;
 }
+.rounded-l-lg {
+  border-top-left-radius: 0.5rem;
+  border-bottom-left-radius: 0.5rem;
+}
+.rounded-r-lg {
+  border-top-right-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
 .rounded-t {
   border-top-left-radius: 0.25rem;
   border-top-right-radius: 0.25rem;
@@ -2668,6 +2679,9 @@ video {
 .bg-slate-950 {
   --tw-bg-opacity: 1;
   background-color: rgb(2 6 23 / var(--tw-bg-opacity, 1));
+}
+.bg-slate-950\/20 {
+  background-color: rgb(2 6 23 / 0.2);
 }
 .bg-slate-950\/35 {
   background-color: rgb(2 6 23 / 0.35);
@@ -3393,6 +3407,11 @@ video {
   --tw-shadow-colored: 0 10px 24px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
+.shadow-xl {
+  --tw-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --tw-shadow-colored: 0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
 .shadow-\[var\(--editor-widget-shadow\)\] {
   --tw-shadow-color: var(--editor-widget-shadow);
   --tw-shadow: var(--tw-shadow-colored);
@@ -4073,6 +4092,10 @@ video {
     display: block;
   }
 
+  .sm\:inline {
+    display: inline;
+  }
+
   .sm\:w-\[320px\] {
     width: 320px;
   }
@@ -4152,12 +4175,20 @@ video {
     grid-column: span 3 / span 3;
   }
 
+  .lg\:max-h-none {
+    max-height: none;
+  }
+
   .lg\:grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .lg\:grid-cols-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .lg\:grid-cols-\[15rem_minmax\(0\2c 1fr\)\] {
+    grid-template-columns: 15rem minmax(0,1fr);
   }
 
   .lg\:grid-cols-\[2\.25rem_minmax\(0\2c 1fr\)_minmax\(15rem\2c 0\.72fr\)_auto\] {
@@ -4194,10 +4225,6 @@ video {
 }
 @media (min-width: 1280px) {
 
-  .xl\:static {
-    position: static;
-  }
-
   .xl\:block {
     display: block;
   }
@@ -4206,54 +4233,16 @@ video {
     display: inline;
   }
 
-  .xl\:flex {
-    display: flex;
-  }
-
   .xl\:grid {
     display: grid;
-  }
-
-  .xl\:hidden {
-    display: none;
-  }
-
-  .xl\:w-auto {
-    width: auto;
-  }
-
-  .xl\:grid-cols-1 {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .xl\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .xl\:grid-cols-\[15rem_minmax\(0\2c 1fr\)\] {
-    grid-template-columns: 15rem minmax(0,1fr);
-  }
-
-  .xl\:grid-cols-\[15rem_minmax\(28rem\2c 1fr\)_minmax\(28rem\2c 0\.9fr\)\] {
-    grid-template-columns: 15rem minmax(28rem,1fr) minmax(28rem,0.9fr);
-  }
-
-  .xl\:grid-cols-\[250px_minmax\(420px\2c 1fr\)\] {
-    grid-template-columns: 250px minmax(420px,1fr);
-  }
-
-  .xl\:grid-cols-\[minmax\(28rem\2c 1fr\)_minmax\(28rem\2c 0\.9fr\)\] {
-    grid-template-columns: minmax(28rem,1fr) minmax(28rem,0.9fr);
-  }
-
   .xl\:pr-\[324px\] {
     padding-right: 324px;
-  }
-
-  .xl\:shadow-none {
-    --tw-shadow: 0 0 #0000;
-    --tw-shadow-colored: 0 0 #0000;
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
   }
 }
 @media (min-width: 1536px) {

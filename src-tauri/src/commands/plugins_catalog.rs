@@ -75,7 +75,7 @@ pub(super) fn load_remote_catalog(
         false,
         std::time::Duration::from_secs(8),
         std::time::Duration::from_secs(12),
-        "LatoTex/0.1.3",
+        "LatoTex/0.1.5",
     )
     .map_err(|e| format!("plugin.catalog.fetch_failed:{}:{e}", source.id))?;
     if !response.status().is_success() {

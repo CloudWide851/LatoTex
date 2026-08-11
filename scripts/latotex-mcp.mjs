@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const serverVersion = "0.1.4";
+const serverVersion = "0.1.5";
 const textExtensions = new Set([".tex", ".bib", ".sty", ".cls"]);
 const writeExtensions = new Set([".tex", ".bib", ".sty", ".cls"]);
 const ignoredDirs = new Set([".git", "node_modules", "target", "dist"]);

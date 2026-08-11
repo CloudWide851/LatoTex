@@ -6,6 +6,33 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-11
+
+### Added
+
+- Added unified research conversations with versioned plans, capability execution leases, resumable checkpoints, evidence ledgers, claim verification, full-text retrieval, review screening, and approved reproducible statistical workflows across the 27 commits published after `v0.1.4`.
+- Added topbar project search, file-scoped knowledge graph views, streamlined research onboarding/timeline surfaces, and submission mail workflows with the existing Telegram proxy path.
+- Added project-scoped Agent workspace layout preferences for task/inspector visibility, plan/evidence selection, and normalized three-panel sizing, with matching frontend/Rust settings contracts.
+
+### Changed
+
+- Prioritized Writing before the Knowledge Library in the default navigation while migrating only the exact 0.1.4 default order and preserving custom page orders, Overview compatibility, and Writing as the startup page.
+- Rebuilt the Agent page around one compact toolbar, a conversation-first responsive Workbench, transient compact drawers, and separate Profiles, Routing, and Workflows Studio views without changing Agent execution or SQLite protocols.
+- Unified every plugin card around exactly one state-derived primary action. Manifest registration remains disabled-first, high-risk enablement still requires approval, trusted toolchain/runtime downloads retain HTTPS and SHA-256 verification, probes remain local detection, and package-free built-ins no longer imply a download.
+- Consolidated the four pre-release local UI commits by removing the legacy Overview workspace, moving explanatory copy into information hints, tightening research workspace typography, and retaining project-scoped search/graph behavior.
+- Updated the desktop, package, local Rust crates, MCP server, Cargo lock package metadata, and LatoTex network identity to version 0.1.5.
+
+### Fixed
+
+- Hardened generated research report rendering and research egress/content policy while preserving bounded remote-content handling and the existing plugin/runtime trust boundary.
+- Stabilized portable CI and Windows release validation, restored required clean-build resources and singleton search behavior, and repaired editor/review-lab interactions covered by the post-0.1.4 commit range.
+
+### Validation
+
+- Focused navigation, Agent workspace, plugin primary-action, and Rust settings round-trip coverage passed, including 11 navigation cases, 9 Agent UI tests across 4 files, and 17 plugin tests across 4 files.
+- Release-quality local gates passed serially: `pnpm arch:check`, `pnpm typecheck`, `pnpm test:unit` (183 files / 583 tests), `pnpm build`, and `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed 348 tests with one intentionally ignored online test.
+
 ## [0.1.4] - 2026-08-04
 
 ### Added

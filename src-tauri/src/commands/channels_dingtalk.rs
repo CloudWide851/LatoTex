@@ -55,7 +55,7 @@ fn dingtalk_open_connection_body(client_id: &str, client_secret: &str) -> Value 
                 "topic": "/v1.0/im/bot/messages/get"
             }
         ],
-        "ua": "LatoTex/0.1.0"
+        "ua": "LatoTex/0.1.5"
     })
 }
 

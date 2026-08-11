@@ -22,7 +22,7 @@ use tauri::{async_runtime::spawn_blocking, State};
 use uuid::Uuid;
 
 const GIT_RELEASE_API: &str = "https://api.github.com/repos/git-for-windows/git/releases/latest";
-const DOWNLOAD_USER_AGENT: &str = "LatoTex/0.1.0 (+https://github.com/git-for-windows/git)";
+const DOWNLOAD_USER_AGENT: &str = "LatoTex/0.1.5 (+https://github.com/git-for-windows/git)";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 

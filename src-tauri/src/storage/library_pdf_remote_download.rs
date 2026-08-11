@@ -15,7 +15,7 @@ where
         allow_http_once,
         std::time::Duration::from_secs(15),
         std::time::Duration::from_secs(120),
-        "LatoTex/0.1.3",
+        "LatoTex/0.1.5",
     )?;
     let status = response.status();
     if !status.is_success() {

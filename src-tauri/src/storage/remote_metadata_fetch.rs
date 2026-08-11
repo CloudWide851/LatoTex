@@ -104,7 +104,7 @@ fn extract_crossref_date(message: &Value) -> Option<String> {
 fn http_client() -> Option<Client> {
     Client::builder()
         .timeout(Duration::from_secs(8))
-        .user_agent("LatoTex/0.1.0")
+        .user_agent("LatoTex/0.1.5")
         .build()
         .ok()
 }
