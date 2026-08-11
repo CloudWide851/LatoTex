@@ -3,7 +3,6 @@ import type { PluginCatalogSource } from "../plugins/pluginTypes";
 import type { ChannelPrefs } from "./channels";
 
 export type WorkspacePage =
-  | "overview"
   | "library"
   | "latex"
   | "analysis"
@@ -310,26 +309,6 @@ export type ModelDraftTestInput = {
   apiKey: string;
 };
 
-export type OnboardingStep =
-  | "goal"
-  | "domain_privacy"
-  | "model"
-  | "question"
-  | "plan_review";
-
-export type ResearchDomain =
-  | "general"
-  | "life_sciences"
-  | "social_sciences"
-  | "engineering";
-
-export type OnboardingState = {
-  version: number;
-  status: "active" | "dismissed" | "completed";
-  projectId?: string;
-  completedSteps: OnboardingStep[];
-};
-
 export type KnowledgeSearchScope = "current" | "all";
 
 export type KnowledgeGraphPrefs = {
@@ -393,9 +372,6 @@ export type AppSettings = {
     editorResizeRefreshDelayMs?: number;
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
-    researchGoalByProject?: Record<string, string>;
-    researchDomainByProject?: Record<string, ResearchDomain>;
-    researchPrivacyReviewedByProject?: Record<string, boolean>;
     sidebarPageOrder?: WorkspacePage[];
     agentToolPrefs?: AgentToolPrefs;
     agentPermissionPrefs?: AgentPermissionPrefs;
@@ -406,7 +382,6 @@ export type AppSettings = {
     enabledSkills?: string[];
     hiddenSkills?: string[];
     skillCatalogVersion?: number;
-    onboarding?: OnboardingState;
   };
 };
 

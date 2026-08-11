@@ -23,11 +23,6 @@ import {
   DEFAULT_PANEL_RADIUS_PX,
 } from "../appearance/appAppearance";
 import { normalizeKnowledgePrefs } from "../settings/knowledgeSettings";
-import {
-  normalizeResearchDomainByProject,
-  normalizeResearchGoalByProject,
-  normalizeResearchPrivacyReviewedByProject,
-} from "../onboarding/onboardingState";
 import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 import { shouldRefreshAgentRuntimesAtStartup } from "./startupRuntimeRefresh";
 
@@ -136,15 +131,6 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       libraryExplorerDefaultExpanded: appSettings.uiPrefs?.libraryExplorerDefaultExpanded ?? true,
       workspaceExplorerExpandedPathsByProject: appSettings.uiPrefs?.workspaceExplorerExpandedPathsByProject ?? {},
       libraryExplorerExpandedPathsByProject: appSettings.uiPrefs?.libraryExplorerExpandedPathsByProject ?? {},
-      researchGoalByProject: normalizeResearchGoalByProject(
-        appSettings.uiPrefs?.researchGoalByProject,
-      ),
-      researchDomainByProject: normalizeResearchDomainByProject(
-        appSettings.uiPrefs?.researchDomainByProject,
-      ),
-      researchPrivacyReviewedByProject: normalizeResearchPrivacyReviewedByProject(
-        appSettings.uiPrefs?.researchPrivacyReviewedByProject,
-      ),
       agentToolPrefs: {
         webSearchEnabled: appSettings.uiPrefs?.agentToolPrefs?.webSearchEnabled ?? true,
         workspaceReadEnabled: appSettings.uiPrefs?.agentToolPrefs?.workspaceReadEnabled ?? true,

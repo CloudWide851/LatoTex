@@ -7,9 +7,8 @@ import {
 
 describe("pageRailOrder", () => {
   it("filters invalid values, removes duplicates, and appends missing pages", () => {
-    expect(normalizeSidebarPageOrder(["git", "unknown", "git", "latex"])).toEqual([
+    expect(normalizeSidebarPageOrder(["git", "unknown", "git", "latex", "overview"])).toEqual([
       "latex",
-      "overview",
       "library",
       "analysis",
       "submission",
@@ -27,7 +26,6 @@ describe("pageRailOrder", () => {
 
   it("moves pages within the normalized order", () => {
     expect(moveSidebarPageOrderItem(DEFAULT_PAGE_ORDER, "plugins", -1)).toEqual([
-      "overview",
       "library",
       "latex",
       "analysis",
@@ -43,7 +41,6 @@ describe("pageRailOrder", () => {
   it("keeps research destinations ahead of tools while preserving order inside each group", () => {
     expect(normalizeSidebarPageOrder(["settings", "analysis", "git", "overview"])).toEqual([
       "analysis",
-      "overview",
       "library",
       "latex",
       "submission",

@@ -7,7 +7,7 @@ import { submissionPackBuild, writeFile } from "../../shared/api/workspace";
 import type { AgentRuntimeId } from "../../shared/types/agentControl";
 import type { WorkspacePage } from "../../shared/types/app";
 import type { AgentAppCommand } from "../../shared/types/researchAgent";
-import { isWorkspacePage } from "./workspacePageStorage";
+import { isWorkspacePage, normalizeWorkspacePageId } from "./workspacePageStorage";
 
 const RUNTIME_IDS = new Set<AgentRuntimeId>(["native", "codex-cli", "claude-code-cli"]);
 const BACKEND_ONLY_COMMANDS = new Set<AgentAppCommand["command"]>([
@@ -54,18 +54,19 @@ export async function dispatchResearchUiCommand(
   }
   switch (command.command) {
     case "ui.navigate": {
-      if (!isWorkspacePage(command.pageId)) {
+      if (command.pageId !== "overview" && !isWorkspacePage(command.pageId)) {
         throw new Error("research.ui_command.page_invalid");
       }
+      const pageId = normalizeWorkspacePageId(command.pageId);
       if (command.resource) {
-        if (command.pageId === "library") {
+        if (pageId === "library") {
           context.selectLibraryPath(librarySelectionPath(command.resource));
         } else {
           context.openWorkspaceFile(command.resource, "pinned");
         }
       }
-      context.setPage(command.pageId);
-      return { pageId: command.pageId, resource: command.resource ?? null };
+      context.setPage(pageId);
+      return { pageId, resource: command.resource ?? null };
     }
     case "literature.import": {
       const imported = await importLibraryLink(projectId, command.source);

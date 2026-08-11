@@ -4,10 +4,6 @@ import {
   startResearchPlanningWorkflow,
 } from "../../../shared/api/researchAgent";
 import type { ResearchTask } from "../../../shared/types/researchAgent";
-import {
-  emitOnboardingMilestone,
-  ONBOARDING_RESEARCH_QUESTION_EVENT,
-} from "../../onboarding/onboardingState";
 
 export async function ensureResearchConversationTask(input: {
   projectId: string;
@@ -20,7 +16,6 @@ export async function ensureResearchConversationTask(input: {
     return existing;
   }
   const created = await createResearchTask(input.projectId, input.prompt, input.sessionId);
-  emitOnboardingMilestone(ONBOARDING_RESEARCH_QUESTION_EVENT, input.projectId);
   return created;
 }
 

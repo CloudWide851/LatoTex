@@ -142,7 +142,6 @@ export function FilePreviewPane(props: {
   pdfFallbackProjectId?: string | null;
   pdfFallbackRelativePath?: string | null;
   focusRequest?: { page: number; token: number } | null;
-  onPdfViewed?: () => void;
   t: (key: any) => string;
 }) {
   const {
@@ -161,7 +160,6 @@ export function FilePreviewPane(props: {
     pdfFallbackProjectId,
     pdfFallbackRelativePath,
     focusRequest,
-    onPdfViewed,
     t,
   } = props;
 
@@ -191,7 +189,6 @@ export function FilePreviewPane(props: {
           pdfFallbackProjectId={pdfFallbackProjectId}
           pdfFallbackRelativePath={pdfFallbackRelativePath}
           focusRequest={focusRequest}
-          onDocumentLoadSuccess={onPdfViewed}
           t={t}
         />
       </Suspense>

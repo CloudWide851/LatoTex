@@ -22,10 +22,6 @@ import {
   requestOpenChatSession,
   setActiveChatSessionInStore,
 } from "../../hooks/chatSessionStore";
-import {
-  emitOnboardingMilestone,
-  ONBOARDING_PLAN_REVIEW_EVENT,
-} from "../../onboarding/onboardingState";
 import { ResearchEvidenceLedger } from "./ResearchEvidenceLedger";
 import { ResearchPlanEditor } from "./ResearchPlanEditor";
 import { ResearchTaskSidebar } from "./ResearchTaskSidebar";
@@ -167,12 +163,6 @@ export function ResearchAgentWorkbench(props: {
     setSteps(selectedPlan ? editableStepsFromPlan(selectedPlan.steps) : []);
     setDirty(false);
   }, [selectedPlan?.id, selectedPlan?.version]);
-
-  useEffect(() => {
-    if (projectId && contextOpen && contextTab === "plan" && selectedPlan) {
-      emitOnboardingMilestone(ONBOARDING_PLAN_REVIEW_EVENT, projectId);
-    }
-  }, [contextOpen, contextTab, projectId, selectedPlan]);
 
   const runAction = async (action: string, work: () => Promise<unknown>) => {
     if (actionRef.current) return;

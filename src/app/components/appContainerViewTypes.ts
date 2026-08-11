@@ -128,13 +128,6 @@ export type AppContainerViewProps = WorkspaceValueProps
     setProjectSearchSearched: Dispatch<SetStateAction<boolean>>;
     handleInitProjectFromFolderWithGuard: AppTopbarProps["onOpenFolder"];
     handleCreateSampleProject: AppWorkspaceShellProps["onCreateSample"];
-    handleOnboardingDismiss: AppWorkspaceShellProps["onOnboardingDismiss"];
-    handleOnboardingRestart: AppWorkspaceShellProps["onOnboardingRestart"];
-    handleOnboardingRecordStep: AppWorkspaceShellProps["onOnboardingRecordStep"];
-    handleProjectGoalSave: AppWorkspaceShellProps["onProjectGoalSave"];
-    handleResearchDomainChange: AppWorkspaceShellProps["onResearchDomainChange"];
-    handleResearchPrivacyReview: AppWorkspaceShellProps["onResearchPrivacyReview"];
-    handlePdfViewed: AppWorkspaceShellProps["onPdfViewed"];
     handleWindowControlWithGuard: AppTopbarProps["onWindowControl"];
 
     handleShareStart: AppWorkspaceShellProps["onShareStart"];

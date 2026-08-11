@@ -3,6 +3,7 @@ import {
   DEFAULT_WORKSPACE_PAGE,
   isWorkspacePage,
   loadWorkspacePage,
+  normalizeWorkspacePageId,
   persistWorkspacePage,
 } from "./workspacePageStorage";
 
@@ -55,26 +56,32 @@ describe("workspacePageStorage", () => {
     expect(isWorkspacePage("plugins")).toBe(true);
   });
 
-  it("accepts overview, submission, and the Agent Studio page", () => {
-    for (const page of ["overview", "submission", "agents"] as const) {
+  it("accepts submission and the Agent Studio page", () => {
+    for (const page of ["submission", "agents"] as const) {
       persistWorkspacePage(page);
       expect(loadWorkspacePage()).toBe(page);
       expect(isWorkspacePage(page)).toBe(true);
     }
   });
 
-  it("falls back to overview when no page is persisted", () => {
+  it("defaults to the writing workspace when no page is persisted", () => {
     expect(loadWorkspacePage()).toBe(DEFAULT_WORKSPACE_PAGE);
+    expect(DEFAULT_WORKSPACE_PAGE).toBe("latex");
   });
 
-  it("falls back to overview when the persisted value is invalid", () => {
-    localStorage.setItem("latotex.workspace.page", "unknown-page");
+  it("migrates the removed overview page and invalid values to writing", () => {
+    localStorage.setItem("latotex.workspace.page", "overview");
+    expect(loadWorkspacePage()).toBe("latex");
 
-    expect(loadWorkspacePage()).toBe(DEFAULT_WORKSPACE_PAGE);
+    localStorage.setItem("latotex.workspace.page", "unknown-page");
+    expect(loadWorkspacePage()).toBe("latex");
+    expect(normalizeWorkspacePageId("overview")).toBe("latex");
+    expect(normalizeWorkspacePageId(null)).toBe("latex");
   });
 
   it("validates workspace page ids strictly", () => {
     expect(isWorkspacePage("git")).toBe(true);
+    expect(isWorkspacePage("overview")).toBe(false);
     expect(isWorkspacePage("unknown-page")).toBe(false);
   });
 });

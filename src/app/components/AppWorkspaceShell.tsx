@@ -19,7 +19,6 @@ import {
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
 import {
-  isCompiledPdfPreview,
   resolveWorkspacePreviewFlags,
   resolveWorkspacePreviewMode,
   type WorkspacePreviewMode,
@@ -86,7 +85,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onAgentRun,
     onOpenFolder,
     onCreateSample,
-    onPdfViewed,
     onWriteSelectedFileContent,
     onCompile,
     onExportPdf,
@@ -398,9 +396,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
       previewFocusRequest={previewFocusRequest}
-      onPdfViewed={isCompiledPdfPreview({ previewMode, selectedIsPdf, compiledPdfRelativePath })
-        ? onPdfViewed
-        : undefined}
       t={t}
     />
   );

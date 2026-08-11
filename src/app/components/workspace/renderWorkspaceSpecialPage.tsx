@@ -4,7 +4,6 @@ import { NoProjectPanel } from "./NoProjectPanel";
 import {
   LazyDrawWorkspace,
   LazyPluginMarketplaceSurface,
-  LazyProjectOverviewWorkspaceSurface,
   LazySubmissionCiWorkspaceSurface,
   WorkspacePanelFallback,
 } from "./workspaceShellLazy";
@@ -47,9 +46,6 @@ export function renderWorkspaceSpecialPage(input: {
     <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />
   );
 
-  if (page === "overview") {
-    return activeProjectId ? <LazyProjectOverviewWorkspaceSurface shell={shell} /> : noProject;
-  }
   if (page === "analysis") {
     return <section className="h-full min-h-0">{analysisPanel}</section>;
   }

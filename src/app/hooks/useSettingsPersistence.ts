@@ -11,11 +11,6 @@ import {
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
 import { normalizeKnowledgePrefs } from "../settings/knowledgeSettings";
-import {
-  normalizeResearchDomainByProject,
-  normalizeResearchGoalByProject,
-  normalizeResearchPrivacyReviewedByProject,
-} from "../onboarding/onboardingState";
 import { registerSettingsPersistence } from "../settings/settingsPersistenceBridge";
 
 type SettingsPersistenceParams = {
@@ -157,15 +152,6 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const normalizedLibraryExplorerExpandedPathsByProject = normalizeExpandedMap(
         nextSettings.uiPrefs?.libraryExplorerExpandedPathsByProject,
       );
-      const normalizedResearchGoalByProject = normalizeResearchGoalByProject(
-        nextSettings.uiPrefs?.researchGoalByProject,
-      );
-      const normalizedResearchDomainByProject = normalizeResearchDomainByProject(
-        nextSettings.uiPrefs?.researchDomainByProject,
-      );
-      const normalizedResearchPrivacyReviewedByProject = normalizeResearchPrivacyReviewedByProject(
-        nextSettings.uiPrefs?.researchPrivacyReviewedByProject,
-      );
       const hasCustomScrollbarColors = Boolean(
         String(nextSettings.uiPrefs?.scrollbarThumbColor ?? "").trim()
         || String(nextSettings.uiPrefs?.scrollbarTrackColor ?? "").trim(),
@@ -249,9 +235,6 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           libraryExplorerDefaultExpanded: nextSettings.uiPrefs?.libraryExplorerDefaultExpanded ?? true,
           workspaceExplorerExpandedPathsByProject: normalizedWorkspaceExplorerExpandedPathsByProject,
           libraryExplorerExpandedPathsByProject: normalizedLibraryExplorerExpandedPathsByProject,
-          researchGoalByProject: normalizedResearchGoalByProject,
-          researchDomainByProject: normalizedResearchDomainByProject,
-          researchPrivacyReviewedByProject: normalizedResearchPrivacyReviewedByProject,
           sidebarPageOrder: nextSettings.uiPrefs?.sidebarPageOrder,
           agentToolPrefs: {
             webSearchEnabled: nextSettings.uiPrefs?.agentToolPrefs?.webSearchEnabled ?? true,
@@ -300,7 +283,6 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
               .map((skill) => String(skill ?? "").trim())
               .filter((skill) => skill.length > 0),
           )),
-          onboarding: nextSettings.uiPrefs?.onboarding,
         },
       });
 

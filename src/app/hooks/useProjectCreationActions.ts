@@ -3,7 +3,6 @@ import type { MessageKey } from "../../i18n/messages/en-US/index";
 import { createProject, initProjectFromFolder } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import type { AppSettings, ProjectSummary, ResourceNode } from "../../shared/types/app";
-import { applyOnboardingEventToSettings } from "../onboarding/onboardingState";
 
 type TranslationFn = (key: MessageKey) => string;
 
@@ -67,12 +66,7 @@ export function useProjectCreationActions(params: {
         template: "research-paper",
       });
       applySnapshot(snapshot);
-      setSettings((prev) => prev
-        ? applyOnboardingEventToSettings(
-            { ...prev, activeProjectId: snapshot.summary.id },
-            { type: "restart", projectId: snapshot.summary.id },
-          )
-        : prev);
+      setSettings((prev) => prev ? { ...prev, activeProjectId: snapshot.summary.id } : prev);
       setToast({ type: "info", message: t("toast.projectCreated") });
       await runtimeLogWrite("INFO", `offline research sample created: ${snapshot.summary.id}`);
     } catch (error) {

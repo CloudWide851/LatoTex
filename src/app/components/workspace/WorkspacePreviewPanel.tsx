@@ -42,7 +42,6 @@ export function WorkspacePreviewPanel(props: {
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
   previewFocusRequest: { page: number; token: number } | null;
-  onPdfViewed?: () => void;
   t: TranslationFn;
 }) {
   const {
@@ -73,7 +72,6 @@ export function WorkspacePreviewPanel(props: {
     onZoomReset,
     onPreviewZoomChange,
     previewFocusRequest,
-    onPdfViewed,
     t,
   } = props;
 
@@ -198,7 +196,6 @@ export function WorkspacePreviewPanel(props: {
             pdfFallbackProjectId={activeProjectId}
             pdfFallbackRelativePath={previewPdfFallbackRelativePath}
             focusRequest={previewFocusRequest}
-            onPdfViewed={onPdfViewed}
             t={t}
           />
         )}

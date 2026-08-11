@@ -5,7 +5,6 @@ import {
   GitBranch,
   Globe,
   Languages,
-  LayoutDashboard,
   Library,
   Network,
   Palette,
@@ -75,7 +74,6 @@ export const FIXED_AGENT_ROLES = [
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
   key:
-    | "nav.overview"
     | "nav.library"
     | "nav.latex"
     | "nav.analysis"
@@ -88,7 +86,6 @@ export const PAGE_ITEMS: Array<{
   icon: typeof FileCode2;
   group: "research" | "tools";
 }> = [
-  { id: "overview", key: "nav.overview", icon: LayoutDashboard, group: "research" },
   { id: "library", key: "nav.library", icon: Library, group: "research" },
   { id: "latex", key: "nav.latex", icon: FileCode2, group: "research" },
   { id: "analysis", key: "nav.analysis", icon: SearchCode, group: "research" },

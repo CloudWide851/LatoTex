@@ -35,7 +35,6 @@ import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
-import { useOnboardingController } from "./hooks/useOnboardingController";
 import { useResearchAgentRuntime } from "./hooks/useResearchAgentRuntime";
 import { useResearchUiCommandContext } from "./hooks/useResearchUiCommandContext";
 import type { ProjectDeleteConfirmIntent } from "./components/ProjectDeleteConfirmDialog";
@@ -324,12 +323,6 @@ export function AppContainer() {
     setLocale,
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
-  });
-
-  const onboarding = useOnboardingController({
-    activeProjectId: s.activeProjectId,
-    setSettings: s.setSettings,
-    onCompile: handlers.handleCompile,
   });
 
   const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
@@ -716,13 +709,6 @@ export function AppContainer() {
       setProjectSearchSearched={s.setProjectSearchSearched}
       handleInitProjectFromFolderWithGuard={workspaceActions.handleInitProjectFromFolderWithGuard}
       handleCreateSampleProject={handlers.handleCreateSampleProject}
-      handleOnboardingDismiss={onboarding.handleDismiss}
-      handleOnboardingRestart={onboarding.restart}
-      handleOnboardingRecordStep={onboarding.recordStep}
-      handleProjectGoalSave={onboarding.saveProjectGoal}
-      handleResearchDomainChange={onboarding.saveResearchDomain}
-      handleResearchPrivacyReview={onboarding.markResearchPrivacyReviewed}
-      handlePdfViewed={onboarding.handlePdfViewed}
       handleWindowControlWithGuard={workspaceActions.handleWindowControlWithGuard}
       shareSession={shareSession.shareSession}
       sharePassword={shareSession.sharePassword}
@@ -793,7 +779,7 @@ export function AppContainer() {
       handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
-      handleCompile={onboarding.handleCompile}
+      handleCompile={handlers.handleCompile}
       handleExportCompiledPdf={handlers.handleExportCompiledPdf}
       handleEditorUndo={handlers.handleEditorUndo}
       handleEditorRedo={handlers.handleEditorRedo}

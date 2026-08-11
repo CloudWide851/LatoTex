@@ -12,7 +12,7 @@ function defaultCapabilityInput(capability: string, goal: string): unknown {
     case "literature.search":
       return { queries: [goal], deep: true };
     case "ui.navigate":
-      return { pageId: "overview" };
+      return { pageId: "latex" };
     case "workspace.read":
       return { path: "main.tex", maxChars: 16_000 };
     case "workspace.propose_latex":
