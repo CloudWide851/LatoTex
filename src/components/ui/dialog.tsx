@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils";
 import { cspStyle } from "../../shared/ui/cspStyle";
 import { Button } from "./button";
 import { Input } from "./input";
+import { InfoHint } from "./info-hint";
 
 export type AppDialogProps = {
   isOpen?: boolean;
@@ -105,11 +106,21 @@ export function AppDialogFrame(props: {
         aria-hidden="true"
       />
       <div className="px-5 pb-4 pt-5 sm:px-6">
-        <h2 id={titleId} className="text-base font-semibold leading-6 tracking-[-0.01em]">
-          {title}
-        </h2>
+        <div className="flex items-start gap-1.5">
+          <h2 id={titleId} className="min-w-0 text-base font-semibold leading-6 tracking-[-0.01em]">
+            {title}
+          </h2>
+          {description ? (
+            <InfoHint
+              content={description}
+              label={title}
+              tone={tone === "default" ? "info" : "warning"}
+              className="-mt-px"
+            />
+          ) : null}
+        </div>
         {description ? (
-          <p id={descriptionId} className="mt-1.5 whitespace-pre-line text-sm leading-6 text-[color:var(--app-muted)]">
+          <p id={descriptionId} className="sr-only whitespace-pre-line">
             {description}
           </p>
         ) : null}
@@ -244,6 +255,45 @@ export type AppDialogChoice = {
   tone?: "default" | "danger";
 };
 
+function AppChoiceButton(props: {
+  choice: AppDialogChoice;
+  autoFocus: boolean;
+  onChoose: (id: string) => void;
+}) {
+  const { choice, autoFocus, onChoose } = props;
+  const descriptionId = useId();
+  return (
+    <div
+      className={cn(
+        "control-surface flex w-full items-center gap-2 px-3.5 py-2.5 transition-colors",
+        "hover:border-[color:var(--app-accent)] focus-within:border-[color:var(--app-accent)] focus-within:ring-2 focus-within:ring-[color:var(--app-accent)]",
+        choice.tone === "danger" && "text-[color:var(--app-status-danger)]",
+      )}
+    >
+      <button
+        type="button"
+        autoFocus={autoFocus}
+        className="min-w-0 flex-1 text-left focus-visible:outline-none"
+        aria-describedby={choice.description ? descriptionId : undefined}
+        onClick={() => onChoose(choice.id)}
+      >
+        <strong className="block text-sm font-medium">{choice.label}</strong>
+      </button>
+      {choice.description ? (
+        <>
+          <InfoHint
+            content={choice.description}
+            label={choice.label}
+            tone={choice.tone === "danger" ? "warning" : "info"}
+          />
+          <span id={descriptionId} className="sr-only">{choice.description}</span>
+        </>
+      ) : null}
+      <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--app-accent)]" aria-hidden="true" />
+    </div>
+  );
+}
+
 export function AppChoiceDialog(props: {
   title: string;
   description?: string;
@@ -264,23 +314,12 @@ export function AppChoiceDialog(props: {
     >
       <div className="grid gap-2">
         {choices.map((choice, index) => (
-          <button
+          <AppChoiceButton
             key={choice.id}
-            type="button"
+            choice={choice}
             autoFocus={index === 0}
-            className={cn(
-              "control-surface flex w-full items-start justify-between gap-4 px-3.5 py-3 text-left transition-colors",
-              "hover:border-[color:var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]",
-              choice.tone === "danger" && "text-[color:var(--app-status-danger)]",
-            )}
-            onClick={() => onChoose(choice.id)}
-          >
-            <span className="min-w-0">
-              <strong className="block text-sm font-medium">{choice.label}</strong>
-              {choice.description ? <span className="mt-0.5 block text-xs leading-5 text-[color:var(--app-muted)]">{choice.description}</span> : null}
-            </span>
-            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[color:var(--app-accent)]" aria-hidden="true" />
-          </button>
+            onChoose={onChoose}
+          />
         ))}
       </div>
     </AppDialogFrame>
