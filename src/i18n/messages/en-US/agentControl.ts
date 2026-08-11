@@ -5,6 +5,8 @@ export const enUS_agentControl = {
   "agents.refresh": "Refresh",
   "agents.mobileSections": "Agent control sections",
   "agents.tab.profiles": "Profiles",
+  "agents.tab.routing": "Routing",
+  "agents.tab.workflows": "Workflows",
   "agents.tab.workflow": "Workflow",
   "agents.tab.health": "Health",
   "agents.profiles.title": "Agent profiles",

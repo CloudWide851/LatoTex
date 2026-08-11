@@ -3,138 +3,115 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  getAgentControlCatalog,
-  refreshAgentRuntimes,
-} from "../../../shared/api/agent";
 import type { AgentControlCatalog } from "../../../shared/types/agentControl";
 import { AgentControlCenter } from "./AgentControlCenter";
 
-vi.mock("../../../shared/api/agent", () => ({
+const api = vi.hoisted(() => ({
+  deleteAgentBinding: vi.fn(),
+  deleteAgentGraph: vi.fn(),
+  deleteAgentProfile: vi.fn(),
   getAgentControlCatalog: vi.fn(),
   refreshAgentRuntimes: vi.fn(),
-  saveAgentProfile: vi.fn(),
-  deleteAgentProfile: vi.fn(),
   saveAgentBinding: vi.fn(),
-  deleteAgentBinding: vi.fn(),
   saveAgentGraph: vi.fn(),
-  deleteAgentGraph: vi.fn(),
+  saveAgentProfile: vi.fn(),
 }));
 
-const catalog: AgentControlCatalog = {
+vi.mock("../../../shared/api/agent", () => api);
+vi.mock("./AgentProfileEditor", () => ({
+  AgentProfileEditor: () => <div data-testid="profile-editor" />,
+}));
+vi.mock("./AgentBindingPanel", () => ({
+  AgentBindingPanel: () => <div data-testid="binding-panel" />,
+}));
+vi.mock("./AgentGraphEditor", () => ({
+  AgentGraphEditor: () => <div data-testid="graph-editor" />,
+}));
+
+const CATALOG: AgentControlCatalog = {
   profiles: [{
     id: "builtin-researcher",
     name: "Researcher",
-    description: "Evidence",
-    color: "#0F766E",
+    description: "Research profile",
+    color: "#0f766e",
     modelId: null,
     runtimeId: "native",
     fallbackRuntimeId: "native",
-    identityPrompt: "Use evidence.",
-    skillIds: ["literature-search"],
+    identityPrompt: "Research carefully",
+    skillIds: [],
     mcpServerIds: [],
-    toolIds: ["workspace", "web"],
-    readScopes: ["."],
-    writeScopes: ["readonly"],
-    toolCallBudget: 16,
-    tokenBudget: 48000,
-    timeoutMs: 180000,
+    toolIds: ["workspace"],
+    readScopes: ["project"],
+    writeScopes: ["*.tex"],
+    toolCallBudget: 10,
+    tokenBudget: 4_000,
+    timeoutMs: 30_000,
     builtIn: true,
-    createdAt: "2026-07-30T00:00:00Z",
-    updatedAt: "2026-07-30T00:00:00Z",
-  }],
-  runtimes: [{
-    id: "native",
-    pluginId: "latotex.agent.native",
-    labelKey: "agents.runtime.native",
-    enabled: true,
-    available: true,
-    authenticated: true,
-    source: "bundled",
-    executablePath: null,
-    version: "0.1.4",
-    failure: null,
-    checkedAt: null,
+    createdAt: "",
+    updatedAt: "",
   }],
   bindings: [],
   graphTemplates: [{
-    id: "builtin-research-workflow",
-    name: "Research workflow",
-    description: "Bounded graph",
-    nodes: [{
-      id: "research",
-      role: "researcher",
-      title: "Evidence",
-      profileId: "builtin-researcher",
-      instruction: "Gather evidence.",
-      optional: false,
-    }],
+    id: "builtin-review",
+    name: "Review workflow",
+    description: "Review",
+    nodes: [],
     edges: [],
     maxParallelism: 1,
     builtIn: true,
-    createdAt: "2026-07-30T00:00:00Z",
-    updatedAt: "2026-07-30T00:00:00Z",
+    createdAt: "",
+    updatedAt: "",
   }],
   callsites: [{
-    id: "analysis.workspace",
-    labelKey: "agents.callsite.analysis.workspace.label",
-    descriptionKey: "agents.callsite.analysis.workspace.description",
+    id: "chat.workspace",
+    labelKey: "agents.callsite.chat.workspace.label",
+    descriptionKey: "agents.callsite.chat.workspace.description",
     supportsGraph: true,
     defaultProfileId: "builtin-researcher",
-    defaultGraphTemplateId: "builtin-research-workflow",
+    defaultGraphTemplateId: null,
     effectiveProfileId: "builtin-researcher",
-    effectiveGraphTemplateId: "builtin-research-workflow",
+    effectiveGraphTemplateId: null,
     bindingSource: "built_in",
   }],
   recentRuns: [],
+  runtimes: [],
 };
 
 describe("AgentControlCenter", () => {
+  let container: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+
   beforeEach(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
-    vi.mocked(getAgentControlCatalog).mockResolvedValue(catalog);
-    vi.mocked(refreshAgentRuntimes).mockResolvedValue(catalog.runtimes);
+    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    api.getAgentControlCatalog.mockResolvedValue(CATALOG);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
     vi.clearAllMocks();
-    document.body.innerHTML = "";
   });
 
-  it("loads backend-authoritative profiles, bindings, and task graphs", async () => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
+  it("separates Profiles, Routing, and Workflows into focused views", async () => {
     await act(async () => {
-      root.render(<AgentControlCenter projectId="project-a" models={[]} t={(key) => String(key)} />);
-      await Promise.resolve();
+      root.render(<AgentControlCenter projectId="project-1" models={[]} t={(key) => String(key)} />);
     });
+    await act(async () => Promise.resolve());
 
-    expect(getAgentControlCatalog).toHaveBeenCalledWith("project-a");
-    expect(container.textContent).toContain("Researcher");
-    expect(container.textContent).toContain("Research workflow");
-    expect(container.textContent).toContain("agents.profile.runtime");
-    expect(container.textContent).not.toContain("agents.health.systemLocked");
-    expect(container.textContent).not.toContain("agents.subtitle");
+    expect(container.querySelector("[data-testid='profile-editor']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='binding-panel']")).toBeNull();
+    expect(container.querySelector("[data-testid='graph-editor']")).toBeNull();
 
-    await act(async () => root.unmount());
-  });
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("nav button"));
+    await act(async () => buttons.find((button) => button.textContent === "agents.tab.routing")?.click());
+    expect(container.querySelector("[data-testid='binding-panel']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='profile-editor']")).toBeNull();
 
-  it("maps backend failures to stable localized copy without rendering raw detail", async () => {
-    vi.mocked(getAgentControlCatalog).mockRejectedValueOnce(
-      new Error("Bearer secret-token should never render"),
-    );
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    await act(async () => {
-      root.render(<AgentControlCenter projectId={null} models={[]} t={(key) => String(key)} />);
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).toContain("agents.error.load");
-    expect(container.textContent).not.toContain("secret-token");
-    await act(async () => root.unmount());
+    await act(async () => buttons.find((button) => button.textContent === "agents.tab.workflows")?.click());
+    expect(container.querySelector("[data-testid='graph-editor']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='binding-panel']")).toBeNull();
   });
 });

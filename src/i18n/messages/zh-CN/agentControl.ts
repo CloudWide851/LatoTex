@@ -5,6 +5,8 @@ export const zhCN_agentControl = {
   "agents.refresh": "刷新",
   "agents.mobileSections": "Agent 控制区",
   "agents.tab.profiles": "Profile",
+  "agents.tab.routing": "路由",
+  "agents.tab.workflows": "工作流",
   "agents.tab.workflow": "工作流",
   "agents.tab.health": "健康状态",
   "agents.profiles.title": "Agent Profile",

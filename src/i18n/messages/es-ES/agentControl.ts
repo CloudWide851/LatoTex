@@ -8,6 +8,8 @@ export const esES_agentControl: Partial<Record<MessageKey, string>> = {
   "agents.refresh": "Actualizar",
   "agents.mobileSections": "Secciones de control de agentes",
   "agents.tab.profiles": "Perfiles",
+  "agents.tab.routing": "Enrutamiento",
+  "agents.tab.workflows": "Flujos",
   "agents.tab.workflow": "Flujo",
   "agents.tab.health": "Estado",
   "agents.profiles.title": "Perfiles de agente",

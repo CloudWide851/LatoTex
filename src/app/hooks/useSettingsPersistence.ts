@@ -11,6 +11,7 @@ import {
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
 import { normalizeKnowledgePrefs } from "../settings/knowledgeSettings";
+import { normalizeAgentWorkspaceLayoutMap } from "../settings/agentWorkspaceSettings";
 import { registerSettingsPersistence } from "../settings/settingsPersistenceBridge";
 
 type SettingsPersistenceParams = {
@@ -159,6 +160,9 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const scrollbarColorMode = nextSettings.uiPrefs?.scrollbarColorMode
         ?? (hasCustomScrollbarColors ? "custom" : "accent");
       const normalizedAgentTeamPrefs = normalizeAgentTeamPrefs(nextSettings.uiPrefs?.agentTeamPrefs);
+      const normalizedAgentWorkspaceLayoutByProject = normalizeAgentWorkspaceLayoutMap(
+        nextSettings.uiPrefs?.agentWorkspaceLayoutByProject,
+      );
       const normalizedKnowledgePrefs = normalizeKnowledgePrefs(nextSettings.uiPrefs);
       const normalizedPluginCatalogSources = (nextSettings.uiPrefs?.pluginCatalogSources ?? [])
         .map((source, index) => ({
@@ -236,6 +240,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           workspaceExplorerExpandedPathsByProject: normalizedWorkspaceExplorerExpandedPathsByProject,
           libraryExplorerExpandedPathsByProject: normalizedLibraryExplorerExpandedPathsByProject,
           sidebarPageOrder: nextSettings.uiPrefs?.sidebarPageOrder,
+          agentWorkspaceLayoutByProject: normalizedAgentWorkspaceLayoutByProject,
           agentToolPrefs: {
             webSearchEnabled: nextSettings.uiPrefs?.agentToolPrefs?.webSearchEnabled ?? true,
             workspaceReadEnabled: nextSettings.uiPrefs?.agentToolPrefs?.workspaceReadEnabled ?? true,

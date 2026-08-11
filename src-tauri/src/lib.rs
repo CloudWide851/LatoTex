@@ -1,6 +1,8 @@
 mod commands;
 mod logging;
 mod models;
+#[cfg(test)]
+mod models_agent_workspace_tests;
 mod native_smoke;
 mod outbound_http;
 mod remote_network;

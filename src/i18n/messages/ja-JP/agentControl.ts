@@ -8,6 +8,8 @@ export const jaJP_agentControl: Partial<Record<MessageKey, string>> = {
   "agents.refresh": "更新",
   "agents.mobileSections": "Agent 管理セクション",
   "agents.tab.profiles": "Profile",
+  "agents.tab.routing": "ルーティング",
+  "agents.tab.workflows": "ワークフロー",
   "agents.tab.workflow": "ワークフロー",
   "agents.tab.health": "状態",
   "agents.profiles.title": "Agent Profile",

@@ -18,6 +18,7 @@ import {
   runtimeLogRead,
 } from "../../shared/api/runtime";
 import { clampLayout, DEFAULT_PANEL_LAYOUT } from "../app-config";
+import type { AgentWorkspaceLayoutPrefs, AppSettings } from "../../shared/types/app";
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { clearLatexWorkspaceSession } from "../components/workspace/latexWorkspaceSession";
 import { WorkspacePanelFallback } from "../components/workspace/workspaceShellLazy";
@@ -246,6 +247,29 @@ export function useAppPanelNodes(params: any) {
   const libraryLayout = clampLayout(panelLayout.library, DEFAULT_PANEL_LAYOUT.library!);
   const libraryBibLayout = normalizeLibraryBibLayout(clampLayout(panelLayout.libraryBib, DEFAULT_PANEL_LAYOUT.libraryBib!));
   const activeModelCatalog = settings?.modelCatalog ?? [];
+  const agentWorkspaceLayoutPrefs = activeProjectId
+    ? settings?.uiPrefs?.agentWorkspaceLayoutByProject?.[activeProjectId]
+    : undefined;
+  const handleAgentWorkspaceLayoutChange = useCallback((next: AgentWorkspaceLayoutPrefs) => {
+    if (!activeProjectId) {
+      return;
+    }
+    setSettings((previous: AppSettings | null) => {
+      if (!previous) {
+        return previous;
+      }
+      return {
+        ...previous,
+        uiPrefs: {
+          ...(previous.uiPrefs ?? {}),
+          agentWorkspaceLayoutByProject: {
+            ...(previous.uiPrefs?.agentWorkspaceLayoutByProject ?? {}),
+            [activeProjectId]: next,
+          },
+        },
+      };
+    });
+  }, [activeProjectId, setSettings]);
 
   const analysisPanel = (
     <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
@@ -304,6 +328,8 @@ export function useAppPanelNodes(params: any) {
       <LazyUnifiedAgentWorkspace
         projectId={activeProjectId}
         models={activeModelCatalog}
+        layoutPrefs={agentWorkspaceLayoutPrefs}
+        onLayoutPrefsChange={handleAgentWorkspaceLayoutChange}
         chat={{
           modelOverride: settings?.uiPrefs?.featureModelBindings?.chatAgentModelId ?? null,
           channelPrefs: settings?.uiPrefs?.channels ?? null,

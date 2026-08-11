@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResearchCapabilityDescriptor, ResearchWorkspaceSnapshot } from "../../../shared/types/researchAgent";
+import { normalizeAgentWorkspaceLayoutPrefs } from "../../settings/agentWorkspaceSettings";
 import { ResearchAgentWorkbench } from "./ResearchAgentWorkbench";
 
 const api = vi.hoisted(() => ({
@@ -100,11 +101,18 @@ describe("ResearchAgentWorkbench", () => {
   });
 
   it("keeps one canonical conversation while exposing collapsible task and plan drawers", async () => {
+    const onCompactDrawerChange = vi.fn();
     await act(async () => {
       root.render(
         <ResearchAgentWorkbench
           projectId="project-1"
           conversation={<div data-testid="canonical-conversation"><textarea aria-label="canonical-composer" /></div>}
+          layoutPrefs={normalizeAgentWorkspaceLayoutPrefs(undefined)}
+          desktopLayout={false}
+          compactDrawer="tasks"
+          onCompactDrawerChange={onCompactDrawerChange}
+          onLayoutPrefsChange={vi.fn()}
+          onRunProgressChange={vi.fn()}
           t={(key) => String(key)}
         />,
       );
@@ -113,10 +121,10 @@ describe("ResearchAgentWorkbench", () => {
 
     expect(container.querySelectorAll("[data-testid='canonical-conversation']")).toHaveLength(1);
     expect(container.querySelectorAll("textarea[aria-label='canonical-composer']")).toHaveLength(1);
+    expect(container.textContent).not.toContain("agents.title");
     expect(container.textContent).toContain("Verify the central claim");
-    expect(container.textContent).toContain("research.workbench.planTitle");
     expect(container.querySelector("#research-task-drawer")).not.toBeNull();
-    expect(container.querySelector("#research-context-drawer")).not.toBeNull();
+    expect(container.querySelector("#research-context-drawer")).toBeNull();
 
     const taskButton = Array.from(container.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Verify the central claim"));
@@ -124,12 +132,38 @@ describe("ResearchAgentWorkbench", () => {
     expect(chatStore.setActiveChatSessionInStore).toHaveBeenCalledWith("project-1", "chat-1");
     expect(chatStore.requestOpenChatSession).toHaveBeenCalledWith({ projectId: "project-1", sessionId: "chat-1" });
 
+    onCompactDrawerChange.mockClear();
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
-    expect(container.querySelector("#research-task-drawer")?.className).toContain("hidden");
-    expect(container.querySelector("#research-context-drawer")?.className).toContain("hidden");
-    expect(container.querySelector('button[aria-controls="research-task-drawer"]')?.getAttribute("aria-expanded")).toBe("false");
-    expect(container.querySelector('button[aria-controls="research-context-drawer"]')?.getAttribute("aria-expanded")).toBe("false");
+    expect(onCompactDrawerChange).toHaveBeenCalledWith(null);
+  });
+
+  it("keeps inspector tabs controlled by the project-scoped layout preference", async () => {
+    const onLayoutPrefsChange = vi.fn();
+    const layoutPrefs = normalizeAgentWorkspaceLayoutPrefs({ inspectorTab: "plan" });
+    await act(async () => {
+      root.render(
+        <ResearchAgentWorkbench
+          projectId="project-1"
+          conversation={<div data-testid="canonical-conversation" />}
+          layoutPrefs={layoutPrefs}
+          desktopLayout={false}
+          compactDrawer="inspector"
+          onCompactDrawerChange={vi.fn()}
+          onLayoutPrefsChange={onLayoutPrefsChange}
+          onRunProgressChange={vi.fn()}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+    await act(async () => Promise.resolve());
+
+    const evidenceTab = Array.from(container.querySelectorAll<HTMLButtonElement>("button[role='tab']"))
+      .find((button) => button.textContent === "research.workbench.contextEvidence");
+    await act(async () => evidenceTab?.click());
+
+    expect(onLayoutPrefsChange).toHaveBeenCalledWith({ ...layoutPrefs, inspectorTab: "evidence" });
+    expect(container.querySelectorAll("[data-testid='canonical-conversation']")).toHaveLength(1);
   });
 });

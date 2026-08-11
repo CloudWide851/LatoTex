@@ -1,6 +1,6 @@
-import { Bot, PanelLeft, PanelRight, Sparkles } from "lucide-react";
+import { Bot, Sparkles } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "../../../components/ui/button";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { InfoHint } from "../../../components/ui/info-hint";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import {
@@ -19,6 +19,7 @@ import type {
   ResearchTask,
   ResearchWorkspaceSnapshot,
 } from "../../../shared/types/researchAgent";
+import type { AgentWorkspaceLayoutPrefs, AgentWorkspaceInspectorTab } from "../../../shared/types/app";
 import {
   requestOpenChatSession,
   setActiveChatSessionInStore,
@@ -31,9 +32,14 @@ import {
   parseEditableResearchPlanSteps,
   type EditableResearchPlanStep,
 } from "./researchPlanDraft";
+import { mergeAgentWorkspaceVisibleLayout } from "../../settings/agentWorkspaceSettings";
 
 type TranslationFn = (key: MessageKey) => string;
-type ContextTab = "plan" | "evidence";
+export type AgentCompactDrawer = "tasks" | "inspector" | null;
+export type ResearchWorkbenchRunProgress = {
+  completedSteps: number;
+  totalSteps: number;
+};
 
 function latestPlanForTask(plans: ResearchPlanVersion[], taskId: string) {
   return plans
@@ -50,9 +56,25 @@ function runForTask(runs: ResearchAgentRun[], taskId: string) {
 export function ResearchAgentWorkbench(props: {
   projectId: string | null;
   conversation: ReactNode;
+  layoutPrefs: Required<AgentWorkspaceLayoutPrefs>;
+  desktopLayout: boolean;
+  compactDrawer: AgentCompactDrawer;
+  onCompactDrawerChange: (drawer: AgentCompactDrawer) => void;
+  onLayoutPrefsChange: (prefs: AgentWorkspaceLayoutPrefs) => void;
+  onRunProgressChange: (progress: ResearchWorkbenchRunProgress | null) => void;
   t: TranslationFn;
 }) {
-  const { projectId, conversation, t } = props;
+  const {
+    projectId,
+    conversation,
+    layoutPrefs,
+    desktopLayout,
+    compactDrawer,
+    onCompactDrawerChange,
+    onLayoutPrefsChange,
+    onRunProgressChange,
+    t,
+  } = props;
   const [snapshot, setSnapshot] = useState<ResearchWorkspaceSnapshot | null>(null);
   const [registry, setRegistry] = useState<ResearchCapabilityDescriptor[]>([]);
   const [runs, setRuns] = useState<ResearchAgentRun[]>([]);
@@ -63,9 +85,6 @@ export function ResearchAgentWorkbench(props: {
   const [errorKey, setErrorKey] = useState<MessageKey | "">("");
   const [noticeKey, setNoticeKey] = useState<MessageKey | "">("");
   const [dirty, setDirty] = useState(false);
-  const [tasksOpen, setTasksOpen] = useState(true);
-  const [contextOpen, setContextOpen] = useState(true);
-  const [contextTab, setContextTab] = useState<ContextTab>("plan");
   const [evidenceRefreshToken, setEvidenceRefreshToken] = useState(0);
   const actionRef = useRef("");
 
@@ -130,19 +149,27 @@ export function ResearchAgentWorkbench(props: {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setTasksOpen(false);
-        setContextOpen(false);
+      if (event.key === "Escape" && !desktopLayout && compactDrawer) {
+        onCompactDrawerChange(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [compactDrawer, desktopLayout, onCompactDrawerChange]);
 
   const selectedTask = useMemo(
     () => snapshot?.tasks.find((task) => task.id === selectedTaskId) ?? null,
     [selectedTaskId, snapshot?.tasks],
   );
+  const activeRun = selectedTask ? runForTask(runs, selectedTask.id) : null;
+
+  useEffect(() => {
+    onRunProgressChange(activeRun ? {
+      completedSteps: activeRun.completedSteps,
+      totalSteps: activeRun.totalSteps,
+    } : null);
+    return () => onRunProgressChange(null);
+  }, [activeRun, onRunProgressChange]);
   const taskPlans = useMemo(
     () => (snapshot?.plans ?? [])
       .filter((plan) => plan.taskId === selectedTaskId)
@@ -185,6 +212,9 @@ export function ResearchAgentWorkbench(props: {
 
   const selectTask = (task: ResearchTask) => {
     setSelectedTaskId(task.id);
+    if (!desktopLayout) {
+      onCompactDrawerChange(null);
+    }
     if (projectId && task.chatSessionId) {
       setActiveChatSessionInStore(projectId, task.chatSessionId);
       requestOpenChatSession({ projectId, sessionId: task.chatSessionId });
@@ -232,6 +262,80 @@ export function ResearchAgentWorkbench(props: {
     });
   };
 
+  const tasks = snapshot?.tasks ?? [];
+  const busy = Boolean(busyAction);
+  const renderTaskSidebar = () => (
+    <ResearchTaskSidebar
+      tasks={tasks}
+      runs={runs}
+      selectedTaskId={selectedTaskId}
+      busy={busy}
+      refreshing={busyAction === "refresh"}
+      onRefresh={() => void runAction("refresh", () => refresh(selectedTaskId))}
+      onSelectTask={selectTask}
+      t={t}
+    />
+  );
+  const selectInspectorTab = (tab: AgentWorkspaceInspectorTab) => {
+    onLayoutPrefsChange({ ...layoutPrefs, inspectorTab: tab });
+  };
+  const renderInspector = () => (
+    <>
+      <div className="app-material-inset m-2 inline-flex self-start rounded-md border p-0.5" role="tablist" aria-label={t("research.workbench.contextOpen")}>
+        {(["plan", "evidence"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={layoutPrefs.inspectorTab === tab}
+            className={`rounded px-3 py-1.5 text-[11px] font-medium ${layoutPrefs.inspectorTab === tab ? "bg-[color:var(--app-accent)] text-white" : "text-[color:var(--app-muted)] hover:text-[color:var(--app-fg)]"}`}
+            onClick={() => selectInspectorTab(tab)}
+          >
+            {t(tab === "plan" ? "research.workbench.contextPlan" : "research.workbench.contextEvidence")}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
+        {selectedTask ? (
+          layoutPrefs.inspectorTab === "plan" ? (
+            <ResearchPlanEditor
+              goal={selectedTask.goal}
+              plan={selectedPlan}
+              versions={taskPlans}
+              registry={registry}
+              steps={steps}
+              busy={busy}
+              dirty={dirty}
+              onStepsChange={(next) => {
+                setSteps(next);
+                setDirty(true);
+              }}
+              onSelectVersion={setSelectedPlanVersion}
+              onSave={savePlan}
+              onApprove={approvePlan}
+              onExecute={executePlan}
+              t={t}
+            />
+          ) : (
+            <ResearchEvidenceLedger
+              projectId={projectId ?? ""}
+              taskId={selectedTask.id}
+              refreshToken={evidenceRefreshToken}
+              t={t}
+            />
+          )
+        ) : (
+          <div className="grid h-full place-items-center px-6 text-center">
+            <div className="max-w-sm">
+              <Sparkles className="mx-auto h-5 w-5 text-[color:var(--app-accent)]" aria-hidden="true" />
+              <p className="mt-2 text-xs leading-5 text-[color:var(--app-muted)]">{t("research.workbench.taskEmptyComposer")}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   if (!projectId) {
     return (
       <section className="grid h-full place-items-center px-6 text-center">
@@ -246,108 +350,91 @@ export function ResearchAgentWorkbench(props: {
     );
   }
 
-  const tasks = snapshot?.tasks ?? [];
-  const busy = Boolean(busyAction);
-  const activeRun = selectedTask ? runForTask(runs, selectedTask.id) : null;
-  const gridClass = tasksOpen && contextOpen
-    ? "xl:grid-cols-[15rem_minmax(28rem,1fr)_minmax(28rem,0.9fr)]"
-    : tasksOpen
-      ? "xl:grid-cols-[15rem_minmax(0,1fr)]"
-      : contextOpen
-        ? "xl:grid-cols-[minmax(28rem,1fr)_minmax(28rem,0.9fr)]"
-        : "xl:grid-cols-1";
+  const tasksOpen = layoutPrefs.tasksOpen;
+  const inspectorOpen = layoutPrefs.inspectorOpen;
+  const [tasksSize, , inspectorSize] = layoutPrefs.panelSizes;
+  const conversationSize = 100
+    - (tasksOpen ? tasksSize : 0)
+    - (inspectorOpen ? inspectorSize : 0);
+  const handleDesktopLayout = (visibleLayout: number[]) => {
+    const panelSizes = mergeAgentWorkspaceVisibleLayout(layoutPrefs, visibleLayout);
+    if (panelSizes.some((value, index) => value !== layoutPrefs.panelSizes[index])) {
+      onLayoutPrefsChange({ ...layoutPrefs, panelSizes });
+    }
+  };
 
   return (
     <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden" aria-label={t("research.workbench.title")}>
-      <header className="app-material-panel flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2">
-        <Button size="sm" variant={tasksOpen ? "secondary" : "ghost"} aria-expanded={tasksOpen} aria-controls="research-task-drawer" onClick={() => setTasksOpen((value) => !value)}>
-          <PanelLeft className="h-3.5 w-3.5" />
-          {t(tasksOpen ? "research.workbench.tasksClose" : "research.workbench.tasksOpen")}
-        </Button>
-        <div className="flex min-w-0 flex-1 items-center gap-1">
-          <h2 className="truncate text-xs font-semibold text-[color:var(--app-text)]">{t("research.workbench.conversationTitle")}</h2>
-          <InfoHint content={t("research.workbench.conversationHint")} label={t("research.workbench.conversationTitle")} />
-        </div>
-        {activeRun ? (
-          <span className="app-status-info rounded border px-2 py-1 text-[10px]" role="status">
-            {t("research.workbench.runProgress")} {activeRun.completedSteps}/{activeRun.totalSteps}
-          </span>
-        ) : null}
-        <Button size="sm" variant={contextOpen ? "secondary" : "ghost"} aria-expanded={contextOpen} aria-controls="research-context-drawer" onClick={() => setContextOpen((value) => !value)}>
-          <PanelRight className="h-3.5 w-3.5" />
-          {t(contextOpen ? "research.workbench.contextClose" : "research.workbench.contextOpen")}
-        </Button>
-      </header>
-
       {errorKey ? <div className="app-status-danger rounded-md border px-3 py-2 text-xs" role="alert">{t(errorKey)}</div> : null}
       {noticeKey ? <div className="app-status-success rounded-md border px-3 py-2 text-xs" role="status">{t(noticeKey)}</div> : null}
 
-      <div className={`relative grid min-h-0 flex-1 gap-2 overflow-hidden ${gridClass}`}>
-        <aside id="research-task-drawer" className={`${tasksOpen ? "flex" : "hidden"} app-material-panel absolute inset-y-0 left-0 z-20 w-[min(19rem,88vw)] min-h-0 flex-col overflow-hidden rounded-lg border shadow-lg xl:static xl:w-auto xl:shadow-none`}>
-          <ResearchTaskSidebar
-            tasks={tasks}
-            runs={runs}
-            selectedTaskId={selectedTaskId}
-            busy={busy}
-            refreshing={busyAction === "refresh"}
-            onRefresh={() => void runAction("refresh", () => refresh(selectedTaskId))}
-            onSelectTask={selectTask}
-            t={t}
-          />
-        </aside>
-
-        <main className="min-h-0 min-w-0 overflow-hidden">{conversation}</main>
-
-        <aside id="research-context-drawer" className={`${contextOpen ? "flex" : "hidden"} app-material-panel absolute inset-y-0 right-0 z-30 w-[min(44rem,94vw)] min-h-0 flex-col overflow-hidden rounded-lg border shadow-lg xl:static xl:w-auto xl:shadow-none`}>
-          <div className="app-material-inset m-2 inline-flex self-start rounded-md border p-0.5" role="tablist" aria-label={t("research.workbench.contextOpen")}>
-            {(["plan", "evidence"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={contextTab === tab}
-                className={`rounded px-3 py-1.5 text-[11px] font-medium ${contextTab === tab ? "bg-[color:var(--app-accent)] text-white" : "text-[color:var(--app-muted)]"}`}
-                onClick={() => setContextTab(tab)}
+      {desktopLayout ? (
+        <PanelGroup
+          key={`${projectId}:${tasksOpen ? "tasks" : "no-tasks"}:${inspectorOpen ? "inspector" : "no-inspector"}`}
+          direction="horizontal"
+          className="min-h-0 flex-1 gap-px overflow-hidden"
+          onLayout={handleDesktopLayout}
+        >
+          {tasksOpen ? (
+            <>
+              <Panel id={`agent-tasks-${projectId}`} order={1} defaultSize={tasksSize} minSize={14} maxSize={28} className="min-w-0">
+                <aside id="research-task-drawer" className="app-material-panel flex h-full min-h-0 flex-col overflow-hidden rounded-l-lg border">
+                  {renderTaskSidebar()}
+                </aside>
+              </Panel>
+              <PanelResizeHandle className="resizable-handle" />
+            </>
+          ) : null}
+          <Panel
+            id={`agent-conversation-${projectId}`}
+            order={tasksOpen ? 2 : 1}
+            defaultSize={conversationSize}
+            minSize={38}
+            className="min-w-0"
+          >
+            <main className="h-full min-h-0 min-w-0 overflow-hidden">{conversation}</main>
+          </Panel>
+          {inspectorOpen ? (
+            <>
+              <PanelResizeHandle className="resizable-handle" />
+              <Panel
+                id={`agent-inspector-${projectId}`}
+                order={tasksOpen ? 3 : 2}
+                defaultSize={inspectorSize}
+                minSize={24}
+                maxSize={42}
+                className="min-w-0"
               >
-                {t(tab === "plan" ? "research.workbench.contextPlan" : "research.workbench.contextEvidence")}
-              </button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden px-2 pb-2">
-            {selectedTask ? (
-              contextTab === "plan" ? (
-                <ResearchPlanEditor
-                  goal={selectedTask.goal}
-                  plan={selectedPlan}
-                  versions={taskPlans}
-                  registry={registry}
-                  steps={steps}
-                  busy={busy}
-                  dirty={dirty}
-                  onStepsChange={(next) => {
-                    setSteps(next);
-                    setDirty(true);
-                  }}
-                  onSelectVersion={setSelectedPlanVersion}
-                  onSave={savePlan}
-                  onApprove={approvePlan}
-                  onExecute={executePlan}
-                  t={t}
-                />
-              ) : (
-                <ResearchEvidenceLedger projectId={projectId} taskId={selectedTask.id} refreshToken={evidenceRefreshToken} t={t} />
-              )
-            ) : (
-              <div className="grid h-full place-items-center px-6 text-center">
-                <div className="max-w-sm">
-                  <Sparkles className="mx-auto h-5 w-5 text-[color:var(--app-accent)]" aria-hidden="true" />
-                  <p className="mt-2 text-xs leading-5 text-[color:var(--app-muted)]">{t("research.workbench.taskEmptyComposer")}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </aside>
-      </div>
+                <aside id="research-context-drawer" className="app-material-panel flex h-full min-h-0 flex-col overflow-hidden rounded-r-lg border">
+                  {renderInspector()}
+                </aside>
+              </Panel>
+            </>
+          ) : null}
+        </PanelGroup>
+      ) : (
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <main className="h-full min-h-0 min-w-0 overflow-hidden">{conversation}</main>
+          {compactDrawer ? (
+            <button
+              type="button"
+              className="absolute inset-0 z-20 cursor-default bg-slate-950/20"
+              aria-label={t(compactDrawer === "tasks" ? "research.workbench.tasksClose" : "research.workbench.contextClose")}
+              onClick={() => onCompactDrawerChange(null)}
+            />
+          ) : null}
+          {compactDrawer === "tasks" ? (
+            <aside id="research-task-drawer" className="app-material-floating absolute inset-y-0 left-0 z-30 flex w-[min(22rem,92vw)] min-h-0 flex-col overflow-hidden rounded-r-lg border shadow-xl">
+              {renderTaskSidebar()}
+            </aside>
+          ) : null}
+          {compactDrawer === "inspector" ? (
+            <aside id="research-context-drawer" className="app-material-floating absolute inset-y-0 right-0 z-30 flex w-[min(42rem,96vw)] min-h-0 flex-col overflow-hidden rounded-l-lg border shadow-xl">
+              {renderInspector()}
+            </aside>
+          ) : null}
+        </div>
+      )}
     </section>
   );
 }

@@ -1,8 +1,7 @@
-import { Bot, Plus, RefreshCw, Workflow } from "lucide-react";
+import { Bot, Network, Plus, RefreshCw, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { cspStyle } from "../../../shared/ui/cspStyle";
-import { Select } from "../../../components/ui/select";
 import { requestAppConfirm } from "../../dialog/appDialogBridge";
 import {
   deleteAgentBinding,
@@ -25,7 +24,7 @@ import { AgentGraphEditor } from "./AgentGraphEditor";
 import { AgentProfileEditor } from "./AgentProfileEditor";
 
 type TranslationFn = (key: any) => string;
-type MobileTab = "profiles" | "workflow";
+type StudioSection = "profiles" | "routing" | "workflows";
 
 function agentControlErrorKey(error: unknown): string {
   const code = String(error);
@@ -48,7 +47,7 @@ export function AgentControlCenter(props: {
   const [catalog, setCatalog] = useState<AgentControlCatalog | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedGraphId, setSelectedGraphId] = useState("");
-  const [mobileTab, setMobileTab] = useState<MobileTab>("workflow");
+  const [section, setSection] = useState<StudioSection>("profiles");
   const [busyAction, setBusyAction] = useState("");
   const [errorKey, setErrorKey] = useState("");
 
@@ -185,9 +184,10 @@ export function AgentControlCenter(props: {
     );
   }
 
-  const mobileTabs: Array<{ id: MobileTab; icon: typeof Bot }> = [
+  const studioSections: Array<{ id: StudioSection; icon: typeof Bot }> = [
     { id: "profiles", icon: Bot },
-    { id: "workflow", icon: Workflow },
+    { id: "routing", icon: Network },
+    { id: "workflows", icon: Workflow },
   ];
   const profiles = catalog?.profiles ?? [];
   const graphs = catalog?.graphTemplates ?? [];
@@ -201,13 +201,14 @@ export function AgentControlCenter(props: {
         </div>
       ) : null}
 
-      <nav className="app-material-inset grid grid-cols-2 gap-1 rounded-lg border p-1 xl:hidden" aria-label={t("agents.mobileSections")}>
-        {mobileTabs.map(({ id, icon: Icon }) => (
+      <nav className="app-material-inset grid grid-cols-3 gap-1 rounded-lg border p-1" aria-label={t("agents.mobileSections")}>
+        {studioSections.map(({ id, icon: Icon }) => (
           <button
             key={id}
             type="button"
-            className={`flex min-h-9 items-center justify-center gap-1.5 rounded text-xs font-medium ${mobileTab === id ? "bg-[var(--app-accent)] text-white" : "text-slate-600"}`}
-            onClick={() => setMobileTab(id)}
+            aria-current={section === id ? "page" : undefined}
+            className={`flex min-h-9 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition ${section === id ? "bg-[var(--app-accent)] text-white" : "text-[color:var(--app-muted)] hover:text-[color:var(--app-fg)]"}`}
+            onClick={() => setSection(id)}
           >
             <Icon className="h-3.5 w-3.5" />
             {t(`agents.tab.${id}`)}
@@ -215,64 +216,59 @@ export function AgentControlCenter(props: {
         ))}
       </nav>
 
-      <div className="grid min-h-0 flex-1 gap-2 overflow-hidden xl:grid-cols-[250px_minmax(420px,1fr)]">
-        <aside className={`${mobileTab === "profiles" ? "flex" : "hidden"} app-material-panel min-h-0 flex-col rounded-lg border xl:flex`}>
-          <div className="flex items-center justify-between border-b px-2.5 py-2">
-            <h2 className="text-xs font-semibold text-slate-800">{t("agents.profiles.title")}</h2>
-            <div className="flex items-center gap-1">
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={t("agents.refresh")}
-                title={t("agents.refresh")}
-                disabled={busy}
-                onClick={refreshRuntimes}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${busyAction === "runtime-refresh" ? "animate-spin" : ""}`} />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={t("agents.profile.new")}
-                title={t("agents.profile.new")}
-                disabled={busy || profiles.length === 0}
-                onClick={() => {
-                  const template = profiles.find((profile) => profile.id === "builtin-researcher") ?? profiles[0];
-                  if (template) duplicateProfile(template);
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto p-1.5">
-            {profiles.map((profile) => (
-              <button
-                key={profile.id}
-                type="button"
-                className={`mb-1 flex w-full items-start gap-2 rounded-md border px-2 py-2 text-left transition last:mb-0 ${selectedProfileId === profile.id ? "border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]" : "border-transparent hover:border-[var(--editor-widget-border)]"}`}
-                onClick={() => {
-                  setSelectedProfileId(profile.id);
-                  setMobileTab("workflow");
-                }}
-              >
-                <span
-                  className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
-                  {...cspStyle({ backgroundColor: profile.color })}
-                />
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold text-slate-800">{profile.name}</span>
-                  <span className="block truncate text-[11px] text-slate-500">
-                    {profile.builtIn ? t("agents.profile.builtIn") : t("agents.profile.custom")}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <main className={`${mobileTab === "workflow" ? "block" : "hidden"} min-h-0 overflow-auto xl:block`}>
-          <div className="grid gap-2">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {section === "profiles" ? (
+          <div className="grid h-full min-h-0 gap-2 lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <aside className="app-material-panel flex min-h-0 max-h-48 flex-col overflow-hidden rounded-lg border lg:max-h-none">
+              <div className="flex items-center justify-between border-b px-2.5 py-2">
+                <h2 className="text-xs font-semibold text-[color:var(--app-fg)]">{t("agents.profiles.title")}</h2>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={t("agents.refresh")}
+                    title={t("agents.refresh")}
+                    disabled={busy}
+                    onClick={refreshRuntimes}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${busyAction === "runtime-refresh" ? "animate-spin" : ""}`} />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={t("agents.profile.new")}
+                    title={t("agents.profile.new")}
+                    disabled={busy || profiles.length === 0}
+                    onClick={() => {
+                      const template = profiles.find((profile) => profile.id === "builtin-researcher") ?? profiles[0];
+                      if (template) duplicateProfile(template);
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto p-1.5">
+                {profiles.map((profile) => (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    aria-current={selectedProfileId === profile.id ? "true" : undefined}
+                    className={`mb-1 flex w-full items-start gap-2 rounded-md border px-2 py-2 text-left transition last:mb-0 ${selectedProfileId === profile.id ? "border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]" : "border-transparent hover:border-[var(--editor-widget-border)]"}`}
+                    onClick={() => setSelectedProfileId(profile.id)}
+                  >
+                    <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" {...cspStyle({ backgroundColor: profile.color })} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-semibold text-[color:var(--app-fg)]">{profile.name}</span>
+                      <span className="block truncate text-[11px] text-[color:var(--app-muted)]">
+                        {profile.builtIn ? t("agents.profile.builtIn") : t("agents.profile.custom")}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <main className="min-h-0 overflow-auto">
             <AgentProfileEditor
               profile={selectedProfile}
               models={models}
@@ -283,6 +279,12 @@ export function AgentControlCenter(props: {
               onDelete={removeProfile}
               t={t}
             />
+            </main>
+          </div>
+        ) : null}
+
+        {section === "routing" ? (
+          <main className="h-full min-h-0 overflow-auto">
             <AgentBindingPanel
               projectId={projectId}
               callsites={catalog?.callsites ?? []}
@@ -303,17 +305,34 @@ export function AgentControlCenter(props: {
               }}
               t={t}
             />
-            <section className="app-material-panel grid gap-2 rounded-lg border p-3">
-              <label className="grid gap-1 text-xs text-slate-600">
-                <span className="font-semibold text-slate-800">{t("agents.graph.select")}</span>
-                <Select
-                  value={selectedGraphId}
-                  aria-label={t("agents.graph.select")}
-                  onChange={(event) => setSelectedGraphId(event.target.value)}
-                >
-                  {graphs.map((graph) => <option key={graph.id} value={graph.id}>{graph.name}</option>)}
-                </Select>
-              </label>
+          </main>
+        ) : null}
+
+        {section === "workflows" ? (
+          <div className="grid h-full min-h-0 gap-2 lg:grid-cols-[15rem_minmax(0,1fr)]">
+            <aside className="app-material-panel flex min-h-0 max-h-48 flex-col overflow-hidden rounded-lg border lg:max-h-none">
+              <div className="border-b px-2.5 py-2 text-xs font-semibold text-[color:var(--app-fg)]">
+                {t("agents.graph.select")}
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto p-1.5">
+                {graphs.map((graph) => (
+                  <button
+                    key={graph.id}
+                    type="button"
+                    aria-current={selectedGraphId === graph.id ? "true" : undefined}
+                    className={`mb-1 flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left transition last:mb-0 ${selectedGraphId === graph.id ? "border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]" : "border-transparent hover:border-[var(--editor-widget-border)]"}`}
+                    onClick={() => setSelectedGraphId(graph.id)}
+                  >
+                    <Workflow className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[color:var(--app-fg)]">{graph.name}</span>
+                    <span className="shrink-0 text-[10px] text-[color:var(--app-muted)]">
+                      {graph.builtIn ? t("agents.profile.builtIn") : t("agents.profile.custom")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <main className="min-h-0 overflow-auto">
               <AgentGraphEditor
                 graph={selectedGraph}
                 profiles={profiles}
@@ -323,10 +342,9 @@ export function AgentControlCenter(props: {
                 onDelete={removeGraph}
                 t={t}
               />
-            </section>
+            </main>
           </div>
-        </main>
-
+        ) : null}
       </div>
     </section>
   );

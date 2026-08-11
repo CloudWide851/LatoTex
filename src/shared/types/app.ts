@@ -316,6 +316,17 @@ export type KnowledgeGraphPrefs = {
   showLabels?: boolean;
 };
 
+export type AgentWorkspaceInspectorTab = "plan" | "evidence";
+
+export type AgentWorkspacePanelSizes = [number, number, number];
+
+export type AgentWorkspaceLayoutPrefs = {
+  tasksOpen?: boolean;
+  inspectorOpen?: boolean;
+  inspectorTab?: AgentWorkspaceInspectorTab;
+  panelSizes?: AgentWorkspacePanelSizes;
+};
+
 export type AppSettings = {
   activeProjectId: string | null;
   modelProtocols: ModelProtocol[];
@@ -373,6 +384,7 @@ export type AppSettings = {
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
     sidebarPageOrder?: WorkspacePage[];
+    agentWorkspaceLayoutByProject?: Record<string, AgentWorkspaceLayoutPrefs>;
     agentToolPrefs?: AgentToolPrefs;
     agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
