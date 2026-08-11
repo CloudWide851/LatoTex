@@ -1,6 +1,7 @@
 import { Bot, PanelLeft, PanelRight, Sparkles } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import {
   approveResearchPlan,
@@ -236,8 +237,10 @@ export function ResearchAgentWorkbench(props: {
       <section className="grid h-full place-items-center px-6 text-center">
         <div className="max-w-md">
           <Bot className="mx-auto h-7 w-7 text-[color:var(--app-accent)]" />
-          <h2 className="mt-3 text-sm font-semibold text-[color:var(--app-fg)]">{t("research.workbench.noProjectTitle")}</h2>
-          <p className="mt-1 text-xs leading-5 text-[color:var(--app-muted)]">{t("research.workbench.noProjectHint")}</p>
+          <div className="mt-3 flex items-center justify-center gap-1">
+            <h2 className="text-sm font-semibold text-[color:var(--app-fg)]">{t("research.workbench.noProjectTitle")}</h2>
+            <InfoHint content={t("research.workbench.noProjectHint")} label={t("research.workbench.noProjectTitle")} />
+          </div>
         </div>
       </section>
     );
@@ -261,9 +264,9 @@ export function ResearchAgentWorkbench(props: {
           <PanelLeft className="h-3.5 w-3.5" />
           {t(tasksOpen ? "research.workbench.tasksClose" : "research.workbench.tasksOpen")}
         </Button>
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           <h2 className="truncate text-xs font-semibold text-[color:var(--app-text)]">{t("research.workbench.conversationTitle")}</h2>
-          <p className="truncate text-[10px] text-[color:var(--app-muted)]">{t("research.workbench.conversationHint")}</p>
+          <InfoHint content={t("research.workbench.conversationHint")} label={t("research.workbench.conversationTitle")} />
         </div>
         {activeRun ? (
           <span className="app-status-info rounded border px-2 py-1 text-[10px]" role="status">

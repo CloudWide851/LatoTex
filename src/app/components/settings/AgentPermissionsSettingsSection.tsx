@@ -47,7 +47,6 @@ export function AgentPermissionsSettingsSection(props: {
 
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-slate-500">{t("settings.agentPermissionsHint")}</p>
       <SettingsSelectRow
         title={t("settings.agentPermission.webSearch")}
         value={prefs.webSearch ?? "allow"}

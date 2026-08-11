@@ -1,6 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "../../../components/ui/button";
 import { Select } from "../../../components/ui/select";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type { AppSettings, ModelCatalogItem } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
@@ -40,10 +41,10 @@ export function AgentRoutingSettingsSection(props: {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
       <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
-        <span className="text-xs font-semibold text-slate-700">
-          {t("settings.agentBulkApplyLabel")}
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700">
+          <span>{t("settings.agentBulkApplyLabel")}</span>
+          <InfoHint content={t("settings.agentHint")} label={t("settings.agentBulkApplyLabel")} />
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-[220px] flex-1">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileArchive, Loader2, XCircle } from "lucide-react";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { submissionPackBuild, writeFile } from "../../../shared/api/workspace";
 import type { SubmissionPackBuildResponse, SubmissionPackIssuePayload } from "../../../shared/types/app";
 import { buildSubmissionEvidenceBundle } from "../../hooks/researchEvidenceBundle";
@@ -263,13 +264,11 @@ export function SubmissionPackPanel(props: {
         <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] text-[color:var(--app-accent)]">
           <FileArchive className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1">
           <div className="truncate text-[11px] font-semibold text-[color:var(--editor-tab-text)]">
             {t("research.submissionPack.kitTitle")}
           </div>
-          <div className="mt-0.5 text-[10px] leading-4 text-[color:var(--editor-tab-muted)]">
-            {t("research.submissionPack.kitSubtitle")}
-          </div>
+          <InfoHint content={t("research.submissionPack.kitSubtitle")} label={t("research.submissionPack.kitTitle")} />
         </div>
       </div>
       <div className="grid min-w-0 grid-cols-[minmax(140px,1fr)_auto] items-end gap-2 max-[760px]:grid-cols-1">

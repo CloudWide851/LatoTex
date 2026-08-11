@@ -1,6 +1,7 @@
 import { Activity, CheckCircle2, Loader2, RefreshCw, Stethoscope, Wrench, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { analysisEnvPrepareStart, analysisEnvPrepareStatus, analysisEnvStatus } from "../../../shared/api/analysis";
 import { libraryCitationIndexRebuild, libraryCitationIndexStatus } from "../../../shared/api/library";
 import { projectIntegrityRepair, projectIntegrityStatus, projectPrepareSearchIndex } from "../../../shared/api/projects";
@@ -474,11 +475,11 @@ export function SettingsDoctorSection(props: {
     <div className="app-material-content settings-scrollbar-hidden h-full min-h-0 overflow-auto rounded-lg border p-4">
       <div className="app-material-inset flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <div className="flex items-center gap-1 text-sm font-semibold text-slate-900">
             <Stethoscope className="h-4 w-4" />
             <span>{t("settings.doctor.title")}</span>
+            <InfoHint content={t("settings.doctor.hint")} label={t("settings.doctor.title")} />
           </div>
-          <p className="mt-1 text-xs text-slate-600">{t("settings.doctor.hint")}</p>
           {lastRunLabel ? (
             <p className="mt-1 text-[11px] text-slate-500">
               {formatDoctorMessage(t, "settings.doctor.lastRun", { time: lastRunLabel })}

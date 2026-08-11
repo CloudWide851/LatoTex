@@ -1,4 +1,5 @@
 import { LoaderCircle } from "lucide-react";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type { TranslationFn } from "./workspaceShellTypes";
 
 export function WorkspaceBootstrapFallback({ t }: { t: TranslationFn }) {
@@ -15,9 +16,9 @@ export function WorkspaceBootstrapFallback({ t }: { t: TranslationFn }) {
         <section className="app-material-shell ml-1 flex min-w-0 flex-1 items-center justify-center rounded-lg border p-6">
           <div className="app-material-inset flex max-w-sm items-center gap-3 rounded-lg border px-4 py-3 text-left">
             <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-[color:var(--app-accent)]" aria-hidden />
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1">
               <div className="text-sm font-medium text-[color:var(--app-text)]">{t("common.loading")}</div>
-              <p className="mt-0.5 text-xs text-[color:var(--app-muted)]">{t("app.startup.lightHint")}</p>
+              <InfoHint content={t("app.startup.lightHint")} label={t("common.loading")} />
             </div>
           </div>
         </section>

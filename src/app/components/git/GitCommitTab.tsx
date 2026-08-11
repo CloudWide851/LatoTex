@@ -2,6 +2,7 @@ import { Plus, Send } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { GitChangeList } from "../GitChangeList";
 import { GitDiffViewer } from "./GitDiffViewer";
 import type {
@@ -111,8 +112,10 @@ export function GitCommitTab(props: {
         </div>
 
         <div className="app-material-inset grid gap-2 rounded-md border p-2">
-          <h4 className="text-xs font-semibold text-slate-600">{t("git.commit")}</h4>
-          <p className="text-[11px] text-slate-500">{t("git.defaultIncludeHint")}</p>
+          <div className="flex items-center gap-1">
+            <h4 className="text-xs font-semibold text-slate-600">{t("git.commit")}</h4>
+            <InfoHint content={t("git.defaultIncludeHint")} label={t("git.commit")} />
+          </div>
           <Input
             value={message}
             onChange={(event) => onMessageChange(event.target.value)}

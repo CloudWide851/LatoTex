@@ -7,6 +7,7 @@ import { getAgentSkillCatalog, validateAgentSkill, validateMcpServer } from "../
 import type { PluginManifest } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { cn } from "../../../lib/utils";
 import { AgentTraceCards } from "../agent/AgentTraceCards";
 import { extractEventCards } from "../../hooks/analysisWorkspaceHelpers";
@@ -181,7 +182,7 @@ export function McpSettingsSection(props: {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500">{t("settings.mcpServersHint")}</p>
+        <InfoHint content={t("settings.mcpServersHint")} label={t("settings.mcpInstall")} />
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" disabled={installingMcp} onClick={() => void loadInstallableMcp()}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -453,8 +454,8 @@ export function SkillsSettingsSection(props: {
 
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-slate-500">{t("settings.agentSkillsHint")}</p>
       <div className="flex flex-wrap gap-2">
+        <InfoHint content={t("settings.agentSkillsHint")} label={t("settings.skillAdd")} />
         <Input value={customSkill} onChange={(event) => setCustomSkill(event.target.value)} placeholder={t("settings.skillAddPlaceholder")} className="h-9 text-xs" />
         <Button size="sm" variant="secondary" onClick={addCustomSkill}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />

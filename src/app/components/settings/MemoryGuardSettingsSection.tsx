@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "../../../components/ui/button";
 import { Select } from "../../../components/ui/select";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type { AppSettings, MemoryGuardPrefs } from "../../../shared/types/app";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
 
@@ -47,11 +48,11 @@ export function MemoryGuardSettingsSection(props: {
   return (
     <div className="grid gap-3 rounded-lg border border-slate-200 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-1">
           <h3 className="text-sm font-semibold text-slate-800">
             {t("settings.memoryGuardTitle")}
           </h3>
-          <p className="mt-1 text-xs text-slate-500">{t("settings.memoryGuardHint")}</p>
+          <InfoHint content={t("settings.memoryGuardHint")} label={t("settings.memoryGuardTitle")} />
         </div>
         <Button size="sm" variant="secondary" onClick={onReleaseMemory}>
           {t("settings.memoryGuardReleaseNow")}

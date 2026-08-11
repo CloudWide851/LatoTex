@@ -124,7 +124,7 @@ export function SettingsNavigation(props: {
       <div className="settings-scrollbar-hidden min-h-0 space-y-3 overflow-auto max-[980px]:hidden">
         {commonGroups.map((group) => (
           <section key={group.id} aria-labelledby={`settings-group-${group.id}`}>
-            <h3 id={`settings-group-${group.id}`} className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h3 id={`settings-group-${group.id}`} className="mb-1 px-2 text-xs font-medium text-slate-500">
               {group.label}
             </h3>
             <div className="space-y-1">
@@ -153,7 +153,7 @@ export function SettingsNavigation(props: {
           <section aria-labelledby="settings-group-advanced">
             <button
               type="button"
-              className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 transition hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--control-ring)]"
+              className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-xs font-medium text-slate-500 transition hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--control-ring)]"
               aria-expanded={showAdvancedSections}
               aria-controls="settings-advanced-sections"
               onClick={() => setAdvancedExpanded((current) => !current)}

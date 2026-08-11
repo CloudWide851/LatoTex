@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { runtimeLogWrite } from "../../shared/api/runtime";
+import { InfoHint } from "../../components/ui/info-hint";
 import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 
 type Props = {
@@ -53,8 +54,10 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <div className="app-material-shell m-1 flex h-full items-center justify-center rounded-lg border p-4">
         <div className="max-w-md text-center">
-          <h2 className="text-base font-semibold text-[color:var(--app-status-danger)]">{this.props.fallbackTitle}</h2>
-          <p className="mt-2 text-sm text-[color:var(--app-muted)]">{this.props.fallbackHint}</p>
+          <div className="flex items-center justify-center gap-1">
+            <h2 className="text-base font-semibold text-[color:var(--app-status-danger)]">{this.props.fallbackTitle}</h2>
+            <InfoHint content={this.props.fallbackHint} label={this.props.fallbackTitle} tone="warning" />
+          </div>
           <button
             className="control-button control-button--secondary mt-3 px-3 py-1.5 text-sm"
             onClick={this.handleRetry}
@@ -62,17 +65,21 @@ export class AppErrorBoundary extends Component<Props, State> {
             {this.props.retryLabel}
           </button>
           {this.props.onCircuitBreak && this.state.crashCount >= 2 ? (
-            <>
-              {this.props.circuitBreakerHint ? (
-                <p className="mt-3 text-xs text-[color:var(--app-muted)]">{this.props.circuitBreakerHint}</p>
-              ) : null}
+            <div className="mt-2 inline-flex items-center gap-1">
               <button
-                className="control-button control-button--danger mt-2 px-3 py-1.5 text-sm"
+                className="control-button control-button--danger px-3 py-1.5 text-sm"
                 onClick={this.handleCircuitBreak}
               >
                 {this.props.circuitBreakerLabel ?? this.props.retryLabel}
               </button>
-            </>
+              {this.props.circuitBreakerHint ? (
+                <InfoHint
+                  content={this.props.circuitBreakerHint}
+                  label={this.props.circuitBreakerLabel ?? this.props.retryLabel}
+                  tone="warning"
+                />
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

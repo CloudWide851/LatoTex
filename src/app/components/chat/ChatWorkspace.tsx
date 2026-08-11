@@ -18,6 +18,7 @@ import {
 import { parseAgentPrompt } from "../../hooks/agentCommands";
 import { ChatMessageList } from "./ChatMessageList";
 import { ChatWorkspaceComposer } from "./ChatWorkspaceComposer";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { updateSession } from "./chatWorkspaceUtils";
 import { useChatWorkspaceState } from "./useChatWorkspaceState";
 import { useChatRunEventHydration } from "./useChatRunEventHydration";
@@ -544,9 +545,9 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="grid h-full place-items-center px-6 text-center">
-            <div className="max-w-md">
+            <div className="flex max-w-md items-center gap-1">
               <p className="font-serif text-base font-semibold text-[color:var(--app-fg)]">{t("chat.emptyTitle")}</p>
-              <p className="mt-2 text-xs leading-5 text-[color:var(--app-muted)]">{t("chat.emptyHint")}</p>
+              <InfoHint content={t("chat.emptyHint")} label={t("chat.emptyTitle")} />
             </div>
           </div>
         ) : (

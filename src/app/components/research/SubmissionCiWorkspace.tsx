@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "../../../components/ui/select";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { libraryCitationResolve } from "../../../shared/api/library";
 import { writeFile } from "../../../shared/api/workspace";
 import { buildResearchAuditMarkdown } from "../../hooks/researchQualityAudit";
@@ -282,11 +283,11 @@ export function SubmissionCiWorkspace(props: {
       <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-3">
         <div className="app-material-inset rounded-lg border p-3 shadow-sm">
           <div className="grid min-w-0 grid-cols-[minmax(120px,0.7fr)_minmax(0,1fr)_auto] items-center gap-3 max-[900px]:grid-cols-1">
-            <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="text-xs font-medium text-[color:var(--editor-tab-muted)]">
                 {t("workspace.mode.submission")}
               </div>
-              <div className="truncate text-lg font-semibold text-[color:var(--editor-tab-text)]">
+              <div className="truncate text-base font-semibold text-[color:var(--editor-tab-text)]">
                 {scoreLabel}
               </div>
             </div>
@@ -298,7 +299,10 @@ export function SubmissionCiWorkspace(props: {
                 <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5">
                   {report.readiness.blockers}
                 </span>
-                <span id="submission-next-action-title" className="font-medium text-[color:var(--editor-tab-text)]">{t(nextAction.titleKey)}</span>
+                <span id="submission-next-action-title" className="inline-flex items-center gap-1 font-medium text-[color:var(--editor-tab-text)]">
+                  <span>{t(nextAction.titleKey)}</span>
+                  <InfoHint content={t(nextAction.detailKey)} label={t(nextAction.titleKey)} />
+                </span>
                 <span className="inline-flex min-w-0 items-center gap-1 truncate">
                   <Gauge className="h-3 w-3 shrink-0" />
                   <span className="truncate">{editableMetricLabel}</span>
@@ -308,7 +312,7 @@ export function SubmissionCiWorkspace(props: {
                   <span className="truncate">{searchReadyMetricLabel}</span>
                 </span>
               </div>
-              <p id="submission-next-action-detail" className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--editor-tab-muted)]">
+              <p id="submission-next-action-detail" className="sr-only">
                 {t(nextAction.detailKey)}
               </p>
             </div>

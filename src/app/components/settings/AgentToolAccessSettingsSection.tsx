@@ -31,7 +31,6 @@ export function AgentToolsSettingsSection(props: {
 
   return (
     <div className="grid gap-2">
-      <p className="text-xs text-slate-500">{t("settings.agentToolsHint")}</p>
       <SettingsBooleanRow label={t("settings.agentTool.webSearch")} checked={Boolean(prefs.webSearchEnabled)} onCheckedChange={(value) => updateToolPref("webSearchEnabled", value)} />
       <SettingsBooleanRow label={t("settings.agentTool.workspaceRead")} checked={Boolean(prefs.workspaceReadEnabled)} onCheckedChange={(value) => updateToolPref("workspaceReadEnabled", value)} />
       <SettingsBooleanRow label={t("settings.agentTool.python")} checked={Boolean(prefs.pythonEnabled)} onCheckedChange={(value) => updateToolPref("pythonEnabled", value)} />

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
+import { InfoHint } from "../../components/ui/info-hint";
 import type {
   AppSettings,
   ModelCatalogItem,
@@ -195,6 +196,11 @@ export function SettingsPanel(props: {
     });
   }, [locale, localSettings, setSettings]);
 
+  const activeSectionTitle = t(
+    SETTINGS_SECTIONS.find((item) => item.id === settingsSection)?.key
+      ?? "settings.section.general",
+  );
+
   return (
     <div className="app-material-panel settings-panel-scroll-scope relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border motion-slide-up max-[980px]:grid-cols-1 max-[980px]:grid-rows-[auto_minmax(0,1fr)]">
       <SettingsNavigation
@@ -214,14 +220,11 @@ export function SettingsPanel(props: {
         )}
       >
         <div className="mb-3 border-b border-slate-200 pb-3">
-          <div>
+          <div className="flex items-center gap-1">
             <h2 className="text-base font-semibold text-slate-900">
-              {t(
-                SETTINGS_SECTIONS.find((item) => item.id === settingsSection)?.key ??
-                  "settings.section.general",
-              )}
+              {activeSectionTitle}
             </h2>
-            <p className="text-xs text-slate-500">{t("settings.saveHint")}</p>
+            <InfoHint content={t("settings.saveHint")} label={activeSectionTitle} />
           </div>
         </div>
 

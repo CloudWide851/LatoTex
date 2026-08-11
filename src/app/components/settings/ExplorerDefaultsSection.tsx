@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppSettings } from "../../../shared/types/app";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
 
 type TranslationFn = (key: any) => string;
@@ -34,13 +35,11 @@ export function ExplorerDefaultsSection(props: {
 
   return (
     <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
-      <div>
+      <div className="flex items-center gap-1">
         <h3 className="text-sm font-semibold text-slate-800">
           {t("settings.explorerDefaultsTitle")}
         </h3>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
-          {t("settings.explorerDefaultsHint")}
-        </p>
+        <InfoHint content={t("settings.explorerDefaultsHint")} label={t("settings.explorerDefaultsTitle")} />
       </div>
       <SettingsBooleanRow
         label={t("settings.workspaceExplorerDefaultExpanded")}
@@ -62,28 +61,29 @@ export function ExplorerDefaultsSection(props: {
         checked={libraryScrollbarVisible}
         onCheckedChange={(nextValue) => update({ libraryExplorerScrollbarVisible: nextValue })}
       />
-      <label className="app-material-inset grid gap-2 rounded-[18px] border p-4 text-xs text-slate-600">
-        <span className="font-medium text-slate-700">
-          {t("settings.editorResizeRefreshDelay")}
-        </span>
+      <div className="app-material-inset grid gap-2 rounded-[18px] border p-4 text-xs text-slate-600">
+        <div className="flex items-center gap-1 font-medium text-slate-700">
+          <span>{t("settings.editorResizeRefreshDelay")}</span>
+          <InfoHint content={t("settings.editorResizeRefreshDelayHint")} label={t("settings.editorResizeRefreshDelay")} />
+        </div>
         <div className="flex items-center gap-3">
-          <input
-            className="min-w-0 flex-1"
-            type="range"
-            min={500}
-            max={5000}
-            step={250}
-            value={resizeRefreshDelayMs}
-            onChange={(event) => update({ editorResizeRefreshDelayMs: Number(event.target.value) })}
-          />
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">{t("settings.editorResizeRefreshDelay")}</span>
+            <input
+              className="w-full"
+              type="range"
+              min={500}
+              max={5000}
+              step={250}
+              value={resizeRefreshDelayMs}
+              onChange={(event) => update({ editorResizeRefreshDelayMs: Number(event.target.value) })}
+            />
+          </label>
           <span className="w-16 text-right font-mono text-[11px]">
             {Math.round(resizeRefreshDelayMs / 100) / 10}s
           </span>
         </div>
-        <span className="leading-5 text-slate-500">
-          {t("settings.editorResizeRefreshDelayHint")}
-        </span>
-      </label>
+      </div>
     </div>
   );
 }

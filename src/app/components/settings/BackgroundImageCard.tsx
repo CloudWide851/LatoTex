@@ -5,6 +5,7 @@ import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
 import type { AppSettings, BackgroundCropRect } from "../../../shared/types/app";
 import { cspStyle } from "../../../shared/ui/cspStyle";
+import { InfoHint } from "../../../components/ui/info-hint";
 
 type TranslationFn = (key: any) => string;
 
@@ -98,7 +99,6 @@ function DefaultBackgroundCard(props: {
     >
       <ImageOff className="h-5 w-5 text-slate-500" />
       <span className="font-medium text-slate-700">{t("settings.backgroundDefault")}</span>
-      <span className="text-[10px] text-slate-500">{t("settings.backgroundDefaultHint")}</span>
     </button>
   );
 }
@@ -150,6 +150,7 @@ function BackgroundCropEditor(props: {
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
           <Scissors className="h-3.5 w-3.5" />
           {t("settings.backgroundCropTitle")}
+          <InfoHint content={t("settings.backgroundCropHint")} label={t("settings.backgroundCropTitle")} />
         </span>
         <button
           type="button"
@@ -199,7 +200,6 @@ function BackgroundCropEditor(props: {
           <input type="range" min={0.1} max={1} step={0.01} value={crop.height} onChange={(event) => updateCrop({ height: Number(event.target.value) })} />
         </label>
       </div>
-      <p className="text-[11px] text-slate-500">{t("settings.backgroundCropHint")}</p>
     </div>
   );
 }
@@ -286,7 +286,10 @@ export function BackgroundImageCard(props: {
   return (
     <div className="rounded-lg border border-slate-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-800">{t("settings.backgroundTitle")}</h3>
+        <div className="flex items-center gap-1">
+          <h3 className="text-sm font-semibold text-slate-800">{t("settings.backgroundTitle")}</h3>
+          <InfoHint content={t("settings.backgroundGalleryHint")} label={t("settings.backgroundTitle")} />
+        </div>
         <button
           type="button"
           className="inline-flex h-8 w-8 items-center justify-center rounded border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:opacity-40"
@@ -301,7 +304,10 @@ export function BackgroundImageCard(props: {
 
       <div className="grid gap-3">
         <div className="grid gap-2">
-          <label className="text-xs font-medium text-slate-600">{t("settings.backgroundBlurTitle")}</label>
+          <div className="flex items-center gap-1">
+            <label className="text-xs font-medium text-slate-600">{t("settings.backgroundBlurTitle")}</label>
+            <InfoHint content={t("settings.backgroundBlurHint").replace("{value}", String(currentBlur))} label={t("settings.backgroundBlurTitle")} />
+          </div>
           <input
             type="range"
             min={4}
@@ -329,11 +335,9 @@ export function BackgroundImageCard(props: {
               }));
             }}
           />
-          <p className="text-xs text-slate-500">{t("settings.backgroundBlurHint").replace("{value}", String(currentBlur))}</p>
         </div>
 
         <div className="grid gap-2">
-          <p className="text-xs text-slate-500">{t("settings.backgroundGalleryHint")}</p>
           <div className="settings-scrollbar-hidden flex max-w-full gap-2 overflow-x-auto pb-1">
             <DefaultBackgroundCard
               active={!activePath}

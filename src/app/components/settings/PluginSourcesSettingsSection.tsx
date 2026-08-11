@@ -5,6 +5,7 @@ import type { AppSettings } from "../../../shared/types/app";
 import type { PluginCatalogSource } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { cn } from "../../../lib/utils";
 
 type TranslationFn = (key: any) => string;
@@ -77,8 +78,8 @@ export function PluginSourcesSettingsSection(props: {
 
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-slate-500">{t("settings.pluginSourcesHint")}</p>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-1">
+        <InfoHint content={t("settings.pluginSourcesHint")} label={t("settings.pluginSourcesAdd")} />
         <Button size="sm" variant="secondary" onClick={() => updateSources([...sources, createSource(sources)])}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           {t("settings.pluginSourcesAdd")}

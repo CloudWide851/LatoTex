@@ -1,6 +1,7 @@
 import { ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { resolveAgentApproval } from "../../../shared/api/agent";
 import type { AgentApprovalDecision } from "../../../shared/types/app";
 import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
@@ -51,10 +52,10 @@ export function AgentApprovalCard(props: {
       <div className="flex items-start gap-2">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <div className="font-semibold">{t("agent.approval.title")}</div>
-          <p className="mt-0.5 text-[11px] leading-4 text-amber-900">
-            {t("agent.approval.description")}
-          </p>
+          <div className="flex items-center gap-1 font-semibold">
+            <span>{t("agent.approval.title")}</span>
+            <InfoHint content={t("agent.approval.description")} label={t("agent.approval.title")} tone="warning" />
+          </div>
           <div className="mt-2 flex flex-wrap gap-1">
             {(card.approvalCapabilities ?? []).map((capability) => (
               <span

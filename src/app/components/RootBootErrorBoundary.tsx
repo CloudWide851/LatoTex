@@ -4,6 +4,7 @@ import { zhCN } from "../../i18n/messages/zh-CN/index";
 import { esES } from "../../i18n/messages/es-ES/index";
 import { jaJP } from "../../i18n/messages/ja-JP/index";
 import { runtimeClearVolatileCacheAndRestart, runtimeLogWrite } from "../../shared/api/runtime";
+import { InfoHint } from "../../components/ui/info-hint";
 import { clearRecoverableClientState } from "../utils/recoverableClientState";
 import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 
@@ -102,11 +103,14 @@ export class RootBootErrorBoundary extends Component<Props, State> {
     return (
       <main className="app-material-canvas flex min-h-screen items-center justify-center p-6 text-[color:var(--app-text)]">
         <section className="app-material-floating w-full max-w-lg rounded-lg border p-5">
-          <h1 className="text-base font-semibold text-[color:var(--app-status-danger)]">{bootText("workspace.bootCrashedTitle")}</h1>
-          <p className="mt-2 text-sm text-[color:var(--app-muted)]">{bootText("workspace.bootCrashedHint")}</p>
-          <p className="app-status-danger mt-3 max-h-24 overflow-auto rounded border p-2 font-mono text-xs">
-            {this.state.errorMessage}
-          </p>
+          <div className="flex items-center gap-1">
+            <h1 className="text-base font-semibold text-[color:var(--app-status-danger)]">{bootText("workspace.bootCrashedTitle")}</h1>
+            <InfoHint
+              content={bootText("workspace.bootCrashedHint")}
+              label={bootText("workspace.bootCrashedTitle")}
+              tone="warning"
+            />
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"

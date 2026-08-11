@@ -7,6 +7,7 @@ import {
   normalizeSidebarPageOrder,
 } from "../../pageRailOrder";
 import type { AppSettings, WorkspacePage } from "../../../shared/types/app";
+import { InfoHint } from "../../../components/ui/info-hint";
 
 type TranslationFn = (key: any) => string;
 
@@ -35,9 +36,9 @@ export function SidebarPageOrderSettingsSection(props: {
   return (
     <section className="grid gap-3 rounded-lg border border-slate-200 p-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1">
           <h3 className="text-sm font-semibold text-slate-800">{t("settings.sidebarOrderTitle")}</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{t("settings.sidebarOrderHint")}</p>
+          <InfoHint content={t("settings.sidebarOrderHint")} label={t("settings.sidebarOrderTitle")} />
         </div>
         <button
           type="button"
@@ -61,7 +62,7 @@ export function SidebarPageOrderSettingsSection(props: {
           return (
             <div key={page} className="grid gap-1">
               {startsGroup ? (
-                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <p className="mt-1 text-xs font-medium text-slate-500">
                   {t(item.group === "research" ? "nav.group.research" : "nav.group.tools")}
                 </p>
               ) : null}

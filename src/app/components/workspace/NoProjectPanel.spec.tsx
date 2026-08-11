@@ -45,14 +45,19 @@ describe("NoProjectPanel", () => {
     });
 
     expect(container.querySelector("h2")?.textContent).toContain("manuscript folder");
-    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
-    expect(buttons.map((button) => button.textContent)).toEqual([
-      "Open project folder",
-      "Create research paper sample",
-    ]);
+    const openButton = container.querySelector<HTMLButtonElement>(
+      'button[title="Open project folder"]',
+    );
+    const sampleButton = container.querySelector<HTMLButtonElement>(
+      'button[title="Create research paper sample"]',
+    );
+    expect(openButton?.textContent).toBe("Open project folder");
+    expect(sampleButton?.textContent).toBe("Create research paper sample");
+    expect(document.body.querySelector("[role='tooltip']")).toBeNull();
+    expect(container.querySelector("p")).toBeNull();
 
-    await act(async () => buttons[0]?.click());
-    await act(async () => buttons[1]?.click());
+    await act(async () => openButton?.click());
+    await act(async () => sampleButton?.click());
     expect(onOpenFolder).toHaveBeenCalledTimes(1);
     expect(onCreateSample).toHaveBeenCalledTimes(1);
   });

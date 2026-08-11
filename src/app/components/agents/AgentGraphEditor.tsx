@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type {
   AgentGraphRole,
   AgentGraphTemplate,
@@ -88,13 +89,11 @@ export function AgentGraphEditor(props: {
   return (
     <section className="app-material-panel grid gap-3 rounded-lg border p-3" aria-labelledby="agent-graph-editor-title">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="flex items-center gap-1">
           <h2 id="agent-graph-editor-title" className="text-sm font-semibold text-slate-900">
             {t("agents.graph.editorTitle")}
           </h2>
-          <p className="text-xs text-slate-500">
-            {readonly ? t("agents.graph.builtInReadonly") : t("agents.graph.hint")}
-          </p>
+          <InfoHint content={readonly ? t("agents.graph.builtInReadonly") : t("agents.graph.hint")} label={t("agents.graph.editorTitle")} />
         </div>
         <div className="flex gap-1.5">
           <Button size="sm" variant="secondary" onClick={() => onDuplicate(draft)} disabled={busy}>
@@ -134,9 +133,9 @@ export function AgentGraphEditor(props: {
 
       <div className="grid gap-2">
         <div className="flex items-center justify-between gap-2">
-          <div>
+          <div className="flex items-center gap-1">
             <h3 className="text-xs font-semibold text-slate-700">{t("agents.graph.nodes")}</h3>
-            <p className="text-[11px] text-slate-500">{t("agents.graph.directDependencies")}</p>
+            <InfoHint content={t("agents.graph.directDependencies")} label={t("agents.graph.nodes")} />
           </div>
           {!readonly ? (
             <Button size="sm" variant="secondary" onClick={addNode} disabled={busy || draft.nodes.length >= 8}>

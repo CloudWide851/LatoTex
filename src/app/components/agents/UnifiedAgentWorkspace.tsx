@@ -5,6 +5,7 @@ import type { ModelCatalogItem } from "../../../shared/types/app";
 import { AgentControlCenter } from "./AgentControlCenter";
 import { ResearchAgentWorkbench } from "./ResearchAgentWorkbench";
 import { ChatWorkspace, type ChatWorkspaceProps } from "../chat/ChatWorkspace";
+import { InfoHint } from "../../../components/ui/info-hint";
 
 type TranslationFn = (key: MessageKey) => string;
 type AgentWorkspaceTab = "workbench" | "studio";
@@ -20,9 +21,9 @@ export function UnifiedAgentWorkspace(props: {
   return (
     <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
       <header className="app-material-panel flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1">
           <h1 className="text-sm font-semibold text-[color:var(--app-fg)]">{t("research.workbench.title")}</h1>
-          <p className="mt-0.5 truncate text-[11px] text-[color:var(--app-muted)]">{t("research.workbench.subtitle")}</p>
+          <InfoHint content={t("research.workbench.subtitle")} label={t("research.workbench.title")} />
         </div>
         <div className="app-material-inset inline-flex rounded-md border p-0.5" role="tablist" aria-label={t("research.workbench.sections")}>
           {([

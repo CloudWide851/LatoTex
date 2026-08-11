@@ -55,7 +55,8 @@ describe("RootBootErrorBoundary", () => {
     });
 
     expect(container.textContent).toContain("LatoTex failed to start");
-    expect(container.textContent).toContain("boot crashed");
+    expect(container.textContent).not.toContain("boot crashed");
+    expect(container.querySelector('button[aria-label="LatoTex failed to start"]')).not.toBeNull();
     expect(container.querySelector("button")).not.toBeNull();
   });
 });

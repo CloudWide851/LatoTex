@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/button";
+import { InfoHint } from "../../components/ui/info-hint";
 import { cspStyle } from "../../shared/ui/cspStyle";
 import { GitCommitTab } from "./git/GitCommitTab";
 import { GitHistoryTab } from "./git/GitHistoryTab";
@@ -249,8 +250,10 @@ export function GitWorkspace(props: {
     return (
       <div className="app-material-panel grid h-full place-items-center rounded-lg border p-6">
         <div className="app-material-content w-full max-w-lg rounded-lg border p-4">
-          <h3 className="text-sm font-semibold text-slate-800">{t("git.installRequired")}</h3>
-          <p className="mt-2 text-xs text-slate-600">{t("git.installHint")}</p>
+          <div className="flex items-center gap-1">
+            <h3 className="text-sm font-semibold text-slate-800">{t("git.installRequired")}</h3>
+            <InfoHint content={t("git.installHint")} label={t("git.installRequired")} />
+          </div>
           {downloadStatus && (
             <div className="app-material-inset mt-3 space-y-2 rounded-md border p-3 text-xs text-slate-700">
               <div className="flex items-center justify-between">

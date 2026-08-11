@@ -1,4 +1,5 @@
 import { Input } from "../../../components/ui/input";
+import { InfoHint } from "../../../components/ui/info-hint";
 
 type TranslationFn = (key: any) => string;
 
@@ -27,12 +28,15 @@ export function UnpaywallContactSettingsField(props: {
 
   return (
     <section className="app-material-inset grid gap-2 rounded-lg border p-3">
-      <label
-        className="text-xs font-semibold text-slate-700"
-        htmlFor="settings-unpaywall-contact-email"
-      >
-        {t("settings.unpaywallContactEmail")}
-      </label>
+      <div className="flex items-center gap-1">
+        <label
+          className="text-xs font-semibold text-slate-700"
+          htmlFor="settings-unpaywall-contact-email"
+        >
+          {t("settings.unpaywallContactEmail")}
+        </label>
+        {!invalid ? <InfoHint content={t("settings.unpaywallContactEmailHint")} label={t("settings.unpaywallContactEmail")} /> : null}
+      </div>
       <Input
         id="settings-unpaywall-contact-email"
         type="email"
@@ -53,7 +57,7 @@ export function UnpaywallContactSettingsField(props: {
       />
       <p
         id={descriptionId}
-        className={invalid ? "text-xs text-rose-600" : "text-xs text-slate-500"}
+        className={invalid ? "text-xs text-rose-600" : "sr-only"}
         role={invalid ? "alert" : undefined}
       >
         {t(invalid

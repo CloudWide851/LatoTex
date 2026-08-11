@@ -1,6 +1,7 @@
 import { CheckCircle2, FileSearch2, ShieldQuestion } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import {
   assessResearchClaim,
@@ -76,17 +77,15 @@ export function ResearchEvidenceLedger(props: {
     <aside className="app-material-panel flex min-h-0 flex-col overflow-hidden rounded-lg border">
       <header className="border-b px-3 py-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-xs font-semibold text-[color:var(--app-fg)]">
+          <h2 className="flex items-center gap-1 text-xs font-semibold text-[color:var(--app-fg)]">
             <FileSearch2 className="h-3.5 w-3.5 text-[color:var(--app-accent)]" />
             {t("research.workbench.evidenceTitle")}
+            <InfoHint content={t("research.workbench.evidenceHint")} label={t("research.workbench.evidenceTitle")} />
           </h2>
           <span className="text-[10px] text-[color:var(--app-muted)]">
             {evidence.length} {t("research.workbench.evidenceCount")}
           </span>
         </div>
-        <p className="mt-1 text-[11px] leading-4 text-[color:var(--app-muted)]">
-          {t("research.workbench.evidenceHint")}
-        </p>
       </header>
 
       <div className="library-scrollbar min-h-0 flex-1 overflow-auto">

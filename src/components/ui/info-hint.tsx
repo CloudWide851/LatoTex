@@ -55,8 +55,9 @@ export function InfoHint(props: {
   label?: string;
   tone?: InfoHintTone;
   className?: string;
+  popupClassName?: string;
 }) {
-  const { content, label, tone = "info", className } = props;
+  const { content, label, tone = "info", className, popupClassName } = props;
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
   const popupId = useId();
@@ -131,7 +132,10 @@ export function InfoHint(props: {
           id={popupId}
           role="tooltip"
           data-pinned={pinned ? "true" : "false"}
-          className="app-material-floating fixed z-[440] overflow-auto whitespace-pre-line rounded-md border border-[color:var(--editor-widget-border)] px-3 py-2 text-xs leading-5 text-[color:var(--app-text)] shadow-lg motion-overlay-enter motion-reduce:animate-none motion-reduce:transition-none"
+          className={cn(
+            "app-material-floating fixed z-[440] overflow-auto whitespace-pre-line rounded-md border border-[color:var(--editor-widget-border)] px-3 py-2 text-xs leading-5 text-[color:var(--app-text)] shadow-lg motion-overlay-enter motion-reduce:animate-none motion-reduce:transition-none",
+            popupClassName,
+          )}
           {...cspStyle({ position: "fixed", ...position })}
         >
           {content}

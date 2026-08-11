@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { InfoHint } from "../../../components/ui/info-hint";
 
 type TranslationFn = (key: any) => string;
 
@@ -56,8 +57,10 @@ export function CompileAssistPopover(props: {
 
   const content = (
     <div className="fixed right-4 top-[calc(var(--topbar-height,48px)+12px)] z-[470] w-[min(560px,92vw)] rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 shadow-soft">
-      <div className="font-semibold">{t("workspace.compileAssist.title")}</div>
-      <div className="mt-1 line-clamp-2 text-[11px]">{t("workspace.compileAssist.description")}</div>
+      <div className="flex items-center gap-1 font-semibold">
+        <span>{t("workspace.compileAssist.title")}</span>
+        <InfoHint content={t("workspace.compileAssist.description")} label={t("workspace.compileAssist.title")} tone="warning" />
+      </div>
       <pre className="mt-2 max-h-[24vh] overflow-auto whitespace-pre-wrap rounded border border-amber-200 bg-white p-1 text-[10px] text-slate-700">
         {diagnostics.slice(0, 3).join("\n")}
       </pre>

@@ -5,6 +5,7 @@ import {
 } from "../../settings/knowledgeSettings";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
 import { SettingsSelectRow } from "./SettingsSelectRow";
+import { InfoHint } from "../../../components/ui/info-hint";
 
 type TranslationFn = (key: any) => string;
 
@@ -30,13 +31,11 @@ export function KnowledgeSettingsSection(props: {
 
   return (
     <div className="grid gap-3">
-      <header className="app-material-inset rounded-lg border p-4">
+      <header className="app-material-inset flex items-center gap-1 rounded-lg border p-4">
         <h3 className="text-sm font-semibold text-slate-800">
           {t("knowledge.settings.title")}
         </h3>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
-          {t("knowledge.settings.description")}
-        </p>
+        <InfoHint content={t("knowledge.settings.description")} label={t("knowledge.settings.title")} />
       </header>
 
       <SettingsSelectRow
@@ -58,30 +57,28 @@ export function KnowledgeSettingsSection(props: {
         })}
       />
 
-      <div className="app-material-inset grid gap-1 rounded-lg border p-1">
+      <div className="app-material-inset flex items-center gap-1 rounded-lg border p-1">
         <SettingsBooleanRow
+          className="min-w-0 flex-1"
           label={t("knowledge.settings.backgroundIndex")}
           checked={prefs.backgroundIndexEnabled}
           onCheckedChange={(value) => updatePrefs({
             knowledgeBackgroundIndexEnabled: value,
           })}
         />
-        <p className="px-3 pb-3 text-xs leading-5 text-slate-500">
-          {t("knowledge.settings.backgroundIndexHint")}
-        </p>
+        <InfoHint content={t("knowledge.settings.backgroundIndexHint")} label={t("knowledge.settings.backgroundIndex")} />
       </div>
 
-      <div className="app-material-inset grid gap-1 rounded-lg border p-1">
+      <div className="app-material-inset flex items-center gap-1 rounded-lg border p-1">
         <SettingsBooleanRow
+          className="min-w-0 flex-1"
           label={t("knowledge.settings.modelReminder")}
           checked={prefs.semanticModelReminderEnabled}
           onCheckedChange={(value) => updatePrefs({
             knowledgeSemanticModelReminderEnabled: value,
           })}
         />
-        <p className="px-3 pb-3 text-xs leading-5 text-slate-500">
-          {t("knowledge.settings.modelReminderHint")}
-        </p>
+        <InfoHint content={t("knowledge.settings.modelReminderHint")} label={t("knowledge.settings.modelReminder")} />
       </div>
 
       <SettingsSelectRow
@@ -100,8 +97,9 @@ export function KnowledgeSettingsSection(props: {
         })}
       />
 
-      <div className="app-material-inset grid gap-1 rounded-lg border p-1">
+      <div className="app-material-inset flex items-center gap-1 rounded-lg border p-1">
         <SettingsBooleanRow
+          className="min-w-0 flex-1"
           label={t("knowledge.settings.graphLabels")}
           checked={prefs.graph.showLabels}
           onCheckedChange={(value) => updatePrefs({
@@ -111,9 +109,7 @@ export function KnowledgeSettingsSection(props: {
             },
           })}
         />
-        <p className="px-3 pb-3 text-xs leading-5 text-slate-500">
-          {t("knowledge.settings.graphLabelsHint")}
-        </p>
+        <InfoHint content={t("knowledge.settings.graphLabelsHint")} label={t("knowledge.settings.graphLabels")} />
       </div>
     </div>
   );

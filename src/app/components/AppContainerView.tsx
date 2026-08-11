@@ -12,7 +12,6 @@ import { clearRecoverableClientState } from "../utils/recoverableClientState";
 import type { AppContainerViewProps } from "./appContainerViewTypes";
 import { ResearchAgentGlobalStatusHost } from "./agent/ResearchAgentGlobalStatusHost";
 export { createAppContainerViewBridge } from "./appContainerViewBridge";
-
 const AppWorkspaceShell = lazy(async () => ({ default: (await import("./AppWorkspaceShell")).AppWorkspaceShell }));
 
 export function AppContainerView(props: AppContainerViewProps) {

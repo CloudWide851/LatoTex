@@ -291,9 +291,12 @@ export function AppearanceSettingsSection(props: {
             </span>
           </div>
         </label>
-        <label className="grid gap-1 text-xs text-slate-600">
-          <span className="flex items-center justify-between gap-2">
-            <span>{t("settings.editorBackgroundColor")}</span>
+        <div className="grid gap-1 text-xs text-slate-600">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1">
+              <span>{t("settings.editorBackgroundColor")}</span>
+              <HelpTooltip content={t("settings.editorBackgroundHint")} />
+            </span>
             <button
               type="button"
               className="text-[11px] font-medium text-[var(--app-accent)] hover:underline"
@@ -301,15 +304,17 @@ export function AppearanceSettingsSection(props: {
             >
               {t("settings.editorBackgroundReset")}
             </button>
-          </span>
-          <input
-            type="color"
-            value={/^#[0-9a-f]{6}$/i.test(String(prefs.editorBackgroundColor ?? "")) ? prefs.editorBackgroundColor : "#fffdf8"}
-            className="app-material-inset h-9 w-20 rounded border p-1"
-            onChange={(event) => updateUiPrefs({ editorBackgroundColor: event.target.value })}
-          />
-          <span className="text-[11px] text-slate-500">{t("settings.editorBackgroundHint")}</span>
-        </label>
+          </div>
+          <label>
+            <span className="sr-only">{t("settings.editorBackgroundColor")}</span>
+            <input
+              type="color"
+              value={/^#[0-9a-f]{6}$/i.test(String(prefs.editorBackgroundColor ?? "")) ? prefs.editorBackgroundColor : "#fffdf8"}
+              className="app-material-inset h-9 w-20 rounded border p-1"
+              onChange={(event) => updateUiPrefs({ editorBackgroundColor: event.target.value })}
+            />
+          </label>
+        </div>
         <label className="grid gap-1 text-xs text-slate-600">
           <span>{t("settings.pdfPageGap")}</span>
           <input

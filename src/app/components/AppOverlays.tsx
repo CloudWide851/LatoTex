@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 import { AppDialog } from "../../components/ui/dialog";
+import { InfoHint } from "../../components/ui/info-hint";
 import { cspStyle } from "../../shared/ui/cspStyle";
 import { ModelModal } from "./ModelModal";
 import { ProjectDeleteConfirmDialog, type ProjectDeleteConfirmIntent } from "./ProjectDeleteConfirmDialog";
@@ -354,10 +355,10 @@ export function AppOverlays(props: AppOverlaysProps) {
           ariaLabel={t("workspace.integrityTitle")}
           className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow"
         >
-            <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
-            <p className="mt-2 text-xs text-slate-600">
-              {t("workspace.integrityHint")}
-            </p>
+            <div className="flex items-center gap-1">
+              <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
+              <InfoHint content={t("workspace.integrityHint")} label={t("workspace.integrityTitle")} />
+            </div>
             <ul className="mt-3 max-h-48 space-y-1 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
               {integrityIssue.missingRequired.map((item) => (
                 <li key={item} className="font-mono">
@@ -383,12 +384,12 @@ export function AppOverlays(props: AppOverlaysProps) {
           isDismissable={!closeBehaviorDialogBusy}
           className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow"
         >
-            <h3 className="text-sm font-semibold text-slate-800">
-              {t("window.closeConfirmTitle")}
-            </h3>
-            <p className="mt-2 text-xs text-slate-600">
-              {t("window.closeConfirmHint")}
-            </p>
+            <div className="flex items-center gap-1">
+              <h3 className="text-sm font-semibold text-slate-800">
+                {t("window.closeConfirmTitle")}
+              </h3>
+              <InfoHint content={t("window.closeConfirmHint")} label={t("window.closeConfirmTitle")} />
+            </div>
             <SettingsBooleanRow
               label={t("window.closeRemember")}
               checked={closeBehaviorRemember}
@@ -431,10 +432,13 @@ export function AppOverlays(props: AppOverlaysProps) {
           isDismissable={!analysisEnvPrompt.envPromptBusy}
           className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow"
         >
-            <h3 className="text-sm font-semibold text-slate-800">{t("analysis.envPromptTitle")}</h3>
-            <p className="mt-2 text-xs text-slate-600">
-              {envPromptStatus.exists ? t("analysis.envPromptRepairHint") : t("analysis.envPromptCreateHint")}
-            </p>
+            <div className="flex items-center gap-1">
+              <h3 className="text-sm font-semibold text-slate-800">{t("analysis.envPromptTitle")}</h3>
+              <InfoHint
+                content={envPromptStatus.exists ? t("analysis.envPromptRepairHint") : t("analysis.envPromptCreateHint")}
+                label={t("analysis.envPromptTitle")}
+              />
+            </div>
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
                 {t("analysis.envPromptPathLabel")}

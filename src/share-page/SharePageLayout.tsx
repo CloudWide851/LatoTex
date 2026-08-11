@@ -14,6 +14,7 @@ import {
 } from "react-aria-components";
 import { avatarColor, trimQuote } from "./shareUtils";
 import type { ShareComment, ShareDevice, ShareI18n, ShareParticipant, ShareQuote, ShareView } from "./shareTypes";
+import { InfoHint } from "../components/ui/info-hint";
 
 type EditorReviewItem = {
   id: string;
@@ -160,9 +161,8 @@ export function SharePageLayout(props: {
       <div className="mx-auto flex min-h-screen max-w-[1640px] flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
         <header className="share-panel flex items-center justify-between gap-4 px-5 py-4">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--share-accent)]">{i18n.reviewSurface}</div>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-semibold text-[color:var(--share-text)]">{i18n.title}</h1>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="truncate text-base font-semibold text-[color:var(--share-text)]">{i18n.title}</h1>
               <span className="share-inset rounded-full border px-3 py-1 text-xs text-[color:var(--share-muted)]">
                 {sid ? i18n.sessionBadge(sid) : i18n.missingSession}
               </span>
@@ -175,10 +175,14 @@ export function SharePageLayout(props: {
 
         <div className={device === "desktop" ? "grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)_360px] gap-4" : "grid min-h-0 flex-1 gap-4"}>
           <aside className="share-panel flex flex-col gap-4 p-4">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--share-muted)]">{i18n.workspaceKicker}</div>
-              <h2 className="mt-1 text-lg font-semibold text-[color:var(--share-text)]">{i18n.accessTitle}</h2>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--share-muted)]">{i18n.connectHelp}</p>
+            <div className="flex items-center gap-1">
+              <h2 className="text-base font-semibold text-[color:var(--share-text)]">{i18n.accessTitle}</h2>
+              <InfoHint
+                content={i18n.connectHelp}
+                label={i18n.accessTitle}
+                className="text-[color:var(--share-muted)]"
+                popupClassName="!border-[color:var(--share-border)] !bg-[color:var(--share-floating)] !text-[color:var(--share-text)]"
+              />
             </div>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--share-muted)]">{i18n.identityLabel}</span>
@@ -215,11 +219,10 @@ export function SharePageLayout(props: {
             <section className="share-panel flex min-h-0 flex-col overflow-hidden">
               <div className="flex items-center justify-between border-b border-[color:var(--share-border)] px-4 py-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--share-muted)]">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--share-text)]">
                     <FileCode2 className="h-3.5 w-3.5 text-[color:var(--share-accent)]" />
-                    <span>{view === "pdf" ? i18n.previewKicker : i18n.manuscriptKicker}</span>
+                    <span>{view === "pdf" ? i18n.pdfPanelLabel : i18n.editorPanelLabel}</span>
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-[color:var(--share-text)]">{view === "pdf" ? i18n.pdfPanelLabel : i18n.editorPanelLabel}</div>
                 </div>
                 {device === "desktop" ? (
                   <Tabs selectedKey={view === "comments" ? "tex" : view} onSelectionChange={(key) => onViewChange(String(key) as ShareView)}>
@@ -301,11 +304,10 @@ export function SharePageLayout(props: {
           {(device === "desktop" || view === "comments") ? (
             <aside className="share-panel grid min-h-0 grid-rows-[minmax(180px,0.44fr)_minmax(0,1fr)] overflow-hidden">
               <section className="flex min-h-0 flex-col border-b border-[color:var(--share-border)] px-4 py-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--share-muted)]">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--share-text)]">
                   <Users className="h-3.5 w-3.5 text-[color:var(--share-accent)]" />
-                  <span>{i18n.livePresence}</span>
+                  <span>{i18n.collaborators}</span>
                 </div>
-                <h2 className="mt-1 text-sm font-semibold text-[color:var(--share-text)]">{i18n.collaborators}</h2>
                 <div className="share-scrollbar mt-3 min-h-0 flex-1 overflow-auto pr-1">
                   {participants.length === 0 ? (
                     <div className="share-inset rounded-xl border border-dashed px-4 py-5 text-center text-sm text-[color:var(--share-muted)]">{i18n.noCollaborators}</div>
@@ -329,11 +331,10 @@ export function SharePageLayout(props: {
               </section>
 
               <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] px-4 py-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--share-muted)]">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--share-text)]">
                   <MessageSquareText className="h-3.5 w-3.5 text-[color:var(--share-accent)]" />
-                  <span>{i18n.discussionKicker}</span>
+                  <span>{i18n.comments}</span>
                 </div>
-                <div className="mt-1 text-sm font-semibold text-[color:var(--share-text)]">{i18n.comments}</div>
                 <div className="share-scrollbar mt-3 min-h-0 overflow-auto pr-1">
                   {comments.length === 0 ? (
                     <div className="share-inset rounded-xl border border-dashed px-4 py-5 text-center text-sm text-[color:var(--share-muted)]">{i18n.noComments}</div>

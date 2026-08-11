@@ -1,4 +1,5 @@
 import type { MutableRefObject } from "react";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { formatDrawStartFailure, type DrawFramePhase } from "./drawFrameLifecycle";
 
 type TranslationFn = (key: any) => string;
@@ -16,8 +17,10 @@ export function DrawWorkspacePluginRequired(props: { onOpenPlugins: () => void; 
   return (
     <section className="app-material-panel flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed p-6 text-center">
       <div className="max-w-md">
-        <div className="text-sm font-semibold text-slate-900">{t("draw.pluginRequiredTitle")}</div>
-        <p className="mt-2 text-xs leading-5 text-slate-500">{t("draw.pluginRequiredBody")}</p>
+        <div className="flex items-center justify-center gap-1 text-sm font-semibold text-slate-900">
+          <span>{t("draw.pluginRequiredTitle")}</span>
+          <InfoHint content={t("draw.pluginRequiredBody")} label={t("draw.pluginRequiredTitle")} />
+        </div>
         <button
           type="button"
           className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"

@@ -1,5 +1,6 @@
 import { CircleDot, RefreshCw } from "lucide-react";
 import { Button } from "../../../components/ui/button";
+import { InfoHint } from "../../../components/ui/info-hint";
 import type { MessageKey } from "../../../i18n/messages/en-US/index";
 import type { ResearchAgentRun, ResearchTask } from "../../../shared/types/researchAgent";
 
@@ -26,12 +27,14 @@ export function ResearchTaskSidebar(props: {
     <>
       <header className="border-b px-3 py-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xs font-semibold text-[color:var(--app-fg)]">{t("research.workbench.tasks")}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-xs font-semibold text-[color:var(--app-fg)]">{t("research.workbench.tasks")}</h2>
+            <InfoHint content={t("research.workbench.discussionHint")} label={t("research.workbench.tasks")} />
+          </div>
           <Button size="icon" variant="ghost" disabled={busy} onClick={onRefresh} aria-label={t("research.workbench.refresh")}>
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} />
           </Button>
         </div>
-        <p className="mt-1 text-[11px] leading-4 text-[color:var(--app-muted)]">{t("research.workbench.discussionHint")}</p>
       </header>
       <div className="library-scrollbar min-h-0 flex-1 overflow-auto p-1.5">
         {tasks.length === 0 ? (

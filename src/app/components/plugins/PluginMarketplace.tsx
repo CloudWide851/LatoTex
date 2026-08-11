@@ -35,6 +35,7 @@ import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetS
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
+import { InfoHint } from "../../../components/ui/info-hint";
 import { cn } from "../../../lib/utils";
 import { requestAppConfirm } from "../../dialog/appDialogBridge";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
@@ -363,9 +364,9 @@ export function PluginMarketplace(props: {
             <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-[color:var(--app-accent)]">
               <Store className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-slate-950">{t("plugins.title")}</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600">{t("plugins.subtitle")}</p>
+            <div className="flex min-w-0 items-center gap-1">
+              <h2 className="text-base font-semibold text-slate-950">{t("plugins.title")}</h2>
+              <InfoHint content={t("plugins.subtitle")} label={t("plugins.title")} />
             </div>
           </div>
           <Button size="sm" variant="secondary" disabled={refreshing || Boolean(busyActionId)} onClick={() => void reload()}>
